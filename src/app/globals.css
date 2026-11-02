@@ -1,0 +1,121 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Pitlane brand: Apex Orange, Synapse Blue, Telemetry Cyan, Tarmac Slate. */
+    --background: 222.222 47.368% 11.176%; /* #0F172A */
+    --foreground: 210.000 40.000% 98.039%; /* #F8FAFC */
+    --card: 221.250 42.105% 14.902%; /* #162036 */
+    --card-foreground: 210.000 40.000% 98.039%; /* #F8FAFC */
+    --popover: 217.241 32.584% 17.451%; /* #1E293B */
+    --popover-foreground: 210.000 40.000% 98.039%; /* #F8FAFC */
+    --primary: 10.884 100.000% 57.843%; /* #FF4F28 */
+    --primary-foreground: 222.222 47.368% 11.176%; /* #0F172A */
+    --secondary: 217.241 32.584% 17.451%; /* #1E293B */
+    --secondary-foreground: 210.000 40.000% 98.039%; /* #F8FAFC */
+    --muted: 220.000 41.772% 15.490%; /* #172238 */
+    --muted-foreground: 215.000 20.225% 65.098%; /* #94A3B8 */
+    --accent: 221.212 83.193% 53.333%; /* #2563EB */
+    --accent-foreground: 210.000 40.000% 98.039%; /* #F8FAFC */
+    --destructive: 0.000 84.236% 60.196%; /* #EF4444 */
+    --destructive-foreground: 0.000 0.000% 100.000%; /* #FFFFFF */
+    --border: 215.294 25.000% 26.667%; /* #334155 */
+    --input: 220.000 41.772% 15.490%; /* #172238 */
+    --ring: 221.212 83.193% 53.333%; /* #2563EB */
+    --radius: 0.625rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  code, pre, kbd, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
+}
+
+/* Streaming pulse cursor */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.streaming-cursor {
+  display: inline-block;
+  color: hsl(var(--primary));
+  animation: blink 0.9s infinite;
+}
+
+/* Shared interaction states follow the Pitlane palette. */
+::selection { background: #2563eb; color: #f8fafc; }
+textarea, input { caret-color: #06b6d4; }
+button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
+
+@media (pointer: coarse) { button[aria-label] { min-width: 44px; min-height: 44px; } }
+
+/* Fixed-width contents slide inside a clipped track; text never squeezes during collapse. */
+.pitlane-sidebar-slot { display: grid; grid-template-columns: 0px; flex-shrink: 0; height: 100%; }
+.pitlane-sidebar-panel {
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition: transform 200ms cubic-bezier(.16,1,.3,1), opacity 160ms ease-out, visibility 200ms;
+  opacity: 0;
+}
+.pitlane-sidebar-panel[data-open="true"] { transform: translateX(0); visibility: visible; opacity: 1; }
+@media (min-width: 1024px) {
+  .pitlane-sidebar-slot { grid-template-columns: 60px; overflow: hidden; transition: grid-template-columns 240ms cubic-bezier(.16,1,.3,1); }
+  .pitlane-sidebar-slot[data-open="true"] { grid-template-columns: 274px; }
+  .pitlane-sidebar-panel { transform: translateX(-20px); }
+  .pitlane-sidebar-panel[data-open="true"] { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pitlane-sidebar-slot, .pitlane-sidebar-panel { transition: none; }
+}
+
+.pitlane-team-slot { display: grid; grid-template-columns: 0px; flex-shrink: 0; height: 100%; }
+.pitlane-team-panel { transform: translateX(100%); visibility: hidden; opacity: 0; transition: transform 200ms cubic-bezier(.16,1,.3,1), opacity 160ms ease-out, visibility 200ms; }
+.pitlane-team-panel[data-open="true"] { transform: translateX(0); visibility: visible; opacity: 1; }
+@media (min-width: 1280px) {
+  .pitlane-team-slot { grid-template-columns: 68px; overflow: hidden; transition: grid-template-columns 240ms cubic-bezier(.16,1,.3,1); }
+  .pitlane-team-slot[data-open="true"] { grid-template-columns: 304px; }
+  .pitlane-team-panel { transform: translateX(20px); }
+  .pitlane-team-panel[data-open="true"] { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pitlane-team-slot, .pitlane-team-panel { transition: none; }
+}

@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+build/
+*.log
+data/
+_backup/
+stitch-export-1/
+stitch-export-2/
+tmp/
+SOUL.md
+tsconfig.tsbuildinfo
+.env*.local
+.env
+.DS_Store
