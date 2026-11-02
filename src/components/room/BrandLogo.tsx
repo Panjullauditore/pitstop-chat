@@ -11,7 +11,7 @@ export function BrandLogo({ className = "", size = 32 }: BrandLogoProps) {
   return (
     <Image
       src="/brand/pitlane-symbol.png"
-      alt={t("Logo Pitlane — simpul kolaborasi oranye, biru, dan cyan")}
+      alt={t("Logo Pitstop — simpul kolaborasi oranye, biru, dan cyan")}
       width={size}
       height={size}
       className={`shrink-0 select-none object-contain ${className}`}

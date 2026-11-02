@@ -63,10 +63,10 @@ export function Sidebar({
         <button type="button" onClick={onOpenSettings} aria-label={t("Pengaturan")} title={t("Pengaturan")} className={railButton}><Settings className="w-[18px] h-[18px]"/></button>
         <button type="button" onClick={onOpenProfile} aria-label={t("Profil")} title={currentUserName} className={railButton}><span className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center text-xs overflow-hidden">{avatar?<img src={avatar} alt="" className="h-full w-full object-cover"/>:userInitial}</span></button>
       </nav>
-    <aside id="pitlane-sidebar" aria-label={t("Navigasi Pitlane")} aria-hidden={!isOpen} inert={!isOpen} data-open={isOpen} className="pitlane-sidebar-panel fixed lg:absolute inset-y-0 left-0 z-50 w-[274px] max-w-[85vw] flex flex-col bg-background text-foreground border-r border-border/60 select-none">
+    <aside id="pitlane-sidebar" aria-label={t("Navigasi Pitstop")} aria-hidden={!isOpen} inert={!isOpen} data-open={isOpen} className="pitlane-sidebar-panel fixed lg:absolute inset-y-0 left-0 z-50 w-[274px] max-w-[85vw] flex flex-col bg-background text-foreground border-r border-border/60 select-none">
       <div className="px-3 pt-3 pb-1 shrink-0">
         <div className="flex items-center justify-between gap-2 h-9 mb-3">
-          <div className="flex items-center gap-2 pl-1"><BrandLogo size={23}/><span className="text-lg font-semibold tracking-tight">Pitlane</span></div>
+          <div className="flex items-center gap-2 pl-1"><BrandLogo size={23}/><span className="text-lg font-semibold tracking-tight">Pitstop</span></div>
           <div className="flex items-center gap-0.5 text-muted-foreground">
             <MessageSearch sessions={sessions} onSelect={searchSelect} compact/>
             <button type="button" aria-label={t("Tutup navigasi")} title={t("Tutup sidebar (Ctrl+Shift+S)")} aria-expanded={isOpen} aria-controls="pitlane-sidebar" onClick={onClose} className="p-1.5 rounded-md hover:bg-secondary/70 hover:text-foreground"><PanelLeftClose className="w-[17px] h-[17px]"/></button>

@@ -15,16 +15,16 @@ export function BrowserBridgeSetup({token,provider="deepseek"}:{token:string;pro
   useEffect(()=>{void refresh();const timer=setInterval(()=>void refresh(),5000);return()=>clearInterval(timer);},[token,provider]);
   const pair=async()=>{setBusy(true);try{const result=await request('extension/pair-code','POST');setCode(result.code);setExpires(result.expiresAt);setError('');}catch(error:any){setError(error.message);}finally{setBusy(false);}};
   const copy=async(value:string)=>{try{await navigator.clipboard.writeText(value);toast.success(t('Teks disalin'));}catch{toast.error(t('Tidak bisa menyalin teks'));}};
-  const test=async()=>{setBusy(true);try{const result=await request('browser/test','POST');if(!result.success)throw new Error(t('DeepSeek belum mengembalikan jawaban tes yang sesuai.'));toast.success(t('DeepSeek tersambung ke Pitlane'));}catch(error:any){setError(error.message);}finally{setBusy(false);void refresh();}};
+  const test=async()=>{setBusy(true);try{const result=await request('browser/test','POST');if(!result.success)throw new Error(t('DeepSeek belum mengembalikan jawaban tes yang sesuai.'));toast.success(t('DeepSeek tersambung ke Pitstop'));}catch(error:any){setError(error.message);}finally{setBusy(false);void refresh();}};
   const disconnect=async()=>{setBusy(true);try{await request('extension/revoke','POST');setCode('');await refresh();}catch(error:any){setError(error.message);}finally{setBusy(false);}};
   return <section className="space-y-4 text-sm">
-    <div className="flex items-center gap-2 font-medium"><Link2 className="h-4 w-4 text-brand-cyan"/>Pitlane Bridge<span className={`ml-auto text-xs ${setup?.connected?'text-brand-cyan':'text-muted-foreground'}`}>{setup?.connected?t('Terhubung'):setup?.paired?t('Menunggu Chrome'):t('Belum dipasangkan')}</span></div>
-    <p className="text-xs leading-5 text-muted-foreground">{native?t('Pasang Pitlane Bridge di profil Chrome yang sudah login Remote Control Antigravity. Pilih Antigravity App di popup extension saat pairing.'):t('Gunakan sesi DeepSeek di Chrome aktifmu. Pitlane Bridge terpisah dari extension Codex; tidak membaca cookie, password, atau token akun.')}</p>
+    <div className="flex items-center gap-2 font-medium"><Link2 className="h-4 w-4 text-brand-cyan"/>Pitstop Bridge<span className={`ml-auto text-xs ${setup?.connected?'text-brand-cyan':'text-muted-foreground'}`}>{setup?.connected?t('Terhubung'):setup?.paired?t('Menunggu Chrome'):t('Belum dipasangkan')}</span></div>
+    <p className="text-xs leading-5 text-muted-foreground">{native?t('Pasang Pitstop Bridge di profil Chrome yang sudah login Remote Control Antigravity. Pilih Antigravity App di popup extension saat pairing.'):t('Gunakan sesi DeepSeek di Chrome aktifmu. Pitstop Bridge terpisah dari extension Codex; tidak membaca cookie, password, atau token akun.')}</p>
     {!setup?.connected&&<ol className="list-decimal pl-4 space-y-3 text-xs leading-5 text-muted-foreground">
       <li>{t('Di chrome://extensions, aktifkan Developer mode, pilih Load unpacked, lalu pilih folder ini:')}
         <div className="mt-2 flex items-start gap-2 rounded-lg border border-border bg-input p-2.5"><code className="flex-1 min-w-0 break-all text-foreground">{setup?.folder||'…'}</code><button type="button" disabled={!setup} onClick={()=>void copy(setup!.folder)} aria-label={t('Salin folder extension')} className="p-1 rounded hover:bg-secondary"><Copy className="h-3.5 w-3.5"/></button></div>
       </li>
-      <li>{t('Buat kode di bawah, buka popup Pitlane Bridge di Chrome, tempel kode, lalu pilih Connect.')}</li>
+      <li>{t('Buat kode di bawah, buka popup Pitstop Bridge di Chrome, tempel kode, lalu pilih Connect.')}</li>
       <li>{native?t('Setelah memasang atau memperbarui extension, refresh tab Remote Control Antigravity dan biarkan terbuka. Persetujuan alat tetap dilakukan di App.'):t('Setelah memasang extension, refresh tab DeepSeek yang sudah login dan biarkan terbuka. Tab khusus tiap pesan dibuat dalam profil Chrome yang sama.')}</li>
     </ol>}
     <div className="flex flex-wrap gap-2">

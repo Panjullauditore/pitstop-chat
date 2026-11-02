@@ -169,7 +169,7 @@ export default function PitlanePage() {
   const handleSendMessage = useCallback(
     async (text: string, mode: string, syncMemory = true, attachmentIds: string[] = [], decisionId?: string) => {
       if (!token) {
-        toast.error(t("Pitlane Belum Terhubung"));
+        toast.error(t("Pitstop Belum Terhubung"));
         return;
       }
 

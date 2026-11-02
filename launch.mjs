@@ -76,7 +76,7 @@ if (!await isBackendReady()) {
     console.error('Frontend AI Room belum siap. Periksa server-error.log.');
     process.exitCode = 1;
   } else {
-    console.log('PITLANE aktif: ' + frontendUrl + ' (Multiple Minds. One Team. One Goal.)');
+    console.log('PITSTOP aktif: ' + frontendUrl + ' (Multiple Minds. One Team. One Goal.)');
     if (!process.argv.includes('--no-open')) {
       const child = spawn('rundll32.exe', ['url.dll,FileProtocolHandler', frontendUrl], {
         windowsHide: true,

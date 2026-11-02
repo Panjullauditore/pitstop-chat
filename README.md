@@ -1,4 +1,4 @@
-# Pitlane — One Room. One Team. One Goal.
+# Pitstop — Multiple Minds. One Team. One Goal.
 
 Aplikasi ruang diskusi kolaboratif untuk pengguna, Codex, Antigravity, dan Claude. Menggunakan arsitektur modern berbasis **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, dan **shadcn/ui**, dengan backend Node.js untuk mengeksekusi CLI resmi yang terpasang secara lokal di sistem Anda.
 
@@ -7,7 +7,7 @@ Aplikasi ruang diskusi kolaboratif untuk pengguna, Codex, Antigravity, dan Claud
 ## 🚀 Menjalankan Aplikasi di Windows
 
 ### Cara Termudah (Otomatis)
-1. Klik dua kali berkas **`Start Pitlane.cmd`** di folder project.
+1. Klik dua kali berkas **`Start Pitstop.cmd`** (atau `Start Pitlane.cmd`) di folder project.
 2. Launcher akan otomatis:
    - Memastikan backend Node.js aktif di `127.0.0.1:4318`.
    - Menjalankan Next.js frontend di `http://127.0.0.1:4317`.

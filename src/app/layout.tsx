@@ -8,9 +8,9 @@ export const metadata: Metadata = {
     icon: [{ url: "/brand/pitlane-symbol.png", type: "image/png" }],
     apple: "/brand/pitlane-symbol.png",
   },
-  applicationName: "Pitlane",
-  title: "Pitlane — Multiple Minds. One Team. One Goal.",
-  description: "Pitlane: Ruang kerja kolaborasi tim manusia dan multi-AI agent untuk berdiskusi, berbagi ide, dan bekerja bersama.",
+  applicationName: "Pitstop",
+  title: "Pitstop — Multiple Minds. One Team. One Goal.",
+  description: "Pitstop: Ruang kerja kolaborasi tim manusia dan multi-AI agent untuk berdiskusi, berbagi ide, dan bekerja bersama.",
 };
 
 export const viewport: Viewport = {

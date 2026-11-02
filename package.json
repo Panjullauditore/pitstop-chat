@@ -1,9 +1,9 @@
 {
-  "name": "ai-room",
+  "name": "pitstop-chat",
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Ruang diskusi multi-agent lokal untuk pengguna, Codex, Antigravity, dan Claude",
+  "description": "Pitstop: Ruang kolaborasi multi-agent lokal (Multiple Minds. One Team. One Goal.)",
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 4317",
     "build": "next build",
