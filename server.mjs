@@ -15,6 +15,7 @@ import { AttachmentStore, MAX_FILE_BYTES } from './attachments.mjs';
 import { accountIdentity, codexRequest, readClaudeAccount } from './accounts.mjs';
 import { codexModels, antigravityModels, validateSelections } from './models.mjs';
 import { createQuotaService,quotaWarnings } from './quota.mjs';
+import {changeSoulLanguage,cliSoulTranslator} from './soul-language.mjs';
 
 const base = dirname(fileURLToPath(import.meta.url));
 const project = dirname(base);
@@ -371,7 +372,9 @@ const server = http.createServer(async (request, response) => {
         return json(response,200,{projectMemory});
       }
       if(request.method==='POST' && url.pathname==='/api/language'){
-        const input=await body(request);await exclusive(()=>sessions.communication.saveLanguage(input.language));return json(response,200,{state:sessions.snapshot()});
+        const input=await body(request);
+        await changeSoulLanguage(sessions.communication,input.language,{revision:input.revision,translate:cliSoulTranslator({definitions,cwd:base,accounts})});
+        return json(response,200,{state:sessions.snapshot()});
       }
       if(request.method==='POST' && url.pathname==='/api/soul'){
         const input=await body(request);

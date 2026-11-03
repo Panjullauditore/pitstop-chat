@@ -1,15 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 test('HTTP session APIs persist state, reject stale writes and protect mutations', async t => {
   const directory=await mkdtemp(join(tmpdir(),'pitlane-http-'));
+  const translator=join(directory,'translator.mjs');
+  await writeFile(translator,`let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{const source=JSON.parse(input.slice(input.lastIndexOf('\\n\\n')+2)).document;console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify({sourceLanguage:source.includes('Ikuti')?'id':'en',content:input.includes('into Indonesian.')?source.replace('Follow user style.','Ikuti gaya user.'):source.replace('Ikuti gaya user.','Follow user style.')})}}));});`);
   let child;
   const start=()=>new Promise((resolve,reject)=>{
-    child=spawn(process.execPath,['server.mjs'],{cwd:process.cwd(),windowsHide:true,env:{...process.env,ROOM_DATA_DIR:directory,ROOM_PORT:'0',ROOM_SKIP_CLI_CHECKS:'1'},stdio:['ignore','pipe','pipe']});
+    child=spawn(process.execPath,['server.mjs'],{cwd:process.cwd(),windowsHide:true,env:{...process.env,ROOM_DATA_DIR:directory,ROOM_PORT:'0',ROOM_SKIP_CLI_CHECKS:'1',ROOM_CODEX_SCRIPT:translator},stdio:['ignore','pipe','pipe']});
     let errors='',output='';const timer=setTimeout(()=>reject(new Error('Server timeout: '+errors)),10000);
     child.stderr.on('data',data=>errors+=data);
     child.stdout.on('data',data=>{output+=data;const match=output.match(/ready: (http:\/\/127.0.0.1:\d+)/);if(match){clearTimeout(timer);resolve(match[1]);}});
@@ -39,6 +41,10 @@ test('HTTP session APIs persist state, reject stale writes and protect mutations
   assert.equal((await fetch(base+'/api/language',{method:'POST'})).status,403);
   assert.equal((await request('/api/language',{language:'fr'})).status,400);
   assert.equal((await request('/api/language',{language:'id'})).data.state.language,'id');
+  const savedSoul=await request('/api/soul',{content:'# Custom Soul\n- Follow user style.',revision:2});
+  assert.equal(savedSoul.status,200);
+  const translatedSoul=await request('/api/language',{language:'id',revision:savedSoul.data.brain.soul.revision});
+  assert.equal(translatedSoul.status,200);assert.match(translatedSoul.data.state.brain.soul.content,/Ikuti gaya user/);
   let result=await request('/api/sessions/new',{title:'Endpoint Test',soulContent:'# HTTP Project'});
   assert.equal(result.status,200);const id=result.data.state.sessionId;
   assert.equal(result.data.state.messages.length,0);

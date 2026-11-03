@@ -24,11 +24,11 @@ export function SettingsDialog({open,onOpenChange,token,currentName,currentAvata
     setBusy(true);
     try{
       if(tab==='language'){
-        const res=await fetch('/api/language',{method:'POST',headers:{'Content-Type':'application/json','X-Room-Token':token},body:JSON.stringify({language:chosenLanguage})});const data=await res.json();if(!res.ok)throw new Error(data.error||t("Gagal menyimpan"));setLanguage(chosenLanguage);
+        const res=await fetch('/api/language',{method:'POST',headers:{'Content-Type':'application/json','X-Room-Token':token},body:JSON.stringify({language:chosenLanguage,revision})});const data=await res.json();if(!res.ok)throw new Error(data.error||t("Gagal menyimpan"));setContent(data.state.brain.soul.content);setRevision(data.state.brain.soul.revision);setLanguage(chosenLanguage);
       }else if(tab==='profile'){
         const res=await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json','X-Room-Token':token},body:JSON.stringify({displayName:name,avatar})});
         const data=await res.json();if(!res.ok)throw new Error(data.error || t("Profil gagal disimpan."));
-      }else{const result=await saveSoulDocument(content,revision,token);setRevision(result.soul.revision);}
+      }else{const result=await saveSoulDocument(content,revision,token);setContent(result.soul.content);setRevision(result.soul.revision);}
       onSaved();toast.success(tab==='language'?t("Pilihan bahasa tersimpan"):tab==='profile'?t("Profil tersimpan"):t("Soul Memory tersimpan"));
     }catch(error:any){toast.error(t("Gagal menyimpan"),{description:error.message});}finally{setBusy(false);}
   };
@@ -42,13 +42,13 @@ export function SettingsDialog({open,onOpenChange,token,currentName,currentAvata
       <div role="tablist" aria-label={t("Bagian pengaturan")} className="flex sm:flex-col gap-1 p-3 border-b sm:border-b-0 sm:border-r border-border sm:w-44 shrink-0">
         <button role="tab" id="settings-profile-tab" aria-controls="settings-panel" aria-selected={tab==='profile'} disabled={busy} onClick={()=>setTab('profile')} className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${tab==='profile'?'bg-secondary text-foreground':'text-muted-foreground hover:bg-secondary/50'}`}><User className="h-4 w-4"/>{t("Profil")}</button>
         <button role="tab" id="settings-soul-tab" aria-controls="settings-panel" aria-selected={tab==='soul'} disabled={busy} onClick={()=>setTab('soul')} className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${tab==='soul'?'bg-secondary text-foreground':'text-muted-foreground hover:bg-secondary/50'}`}><Brain className="h-4 w-4 text-primary"/>Soul Memory</button>
-        <button role="tab" id="settings-language-tab" aria-controls="settings-panel" aria-selected={tab==='language'} disabled={busy} onClick={()=>setTab('language')} className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${tab==='language'?'bg-secondary text-foreground':'text-muted-foreground hover:bg-secondary/50'}`}>{t("Bahasa")}</button>
+        <button role="tab" id="settings-language-tab" aria-controls="settings-panel" aria-selected={tab==='language'} disabled={busy} onClick={()=>{if(content!==(soul?.content||'')){toast.error(t('Simpan perubahan Soul Memory sebelum mengganti bahasa.'));return;}setTab('language');}} className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${tab==='language'?'bg-secondary text-foreground':'text-muted-foreground hover:bg-secondary/50'}`}>{t("Bahasa")}</button>
       </div>
       <div role="tabpanel" id="settings-panel" aria-labelledby={`settings-${tab}-tab`} className="p-5 flex-1 min-w-0 overflow-y-auto space-y-5">
         {tab==='language'?<>
           <h3 className="font-semibold">{t("Bahasa")}</h3><p className="text-xs leading-5 text-muted-foreground">{t("Bahasa aplikasi dan respons default agent.")}</p>
           <select aria-label={t("Bahasa")} value={chosenLanguage} disabled={busy} onChange={event=>setChosenLanguage(event.target.value as 'en'|'id')} className="w-full rounded-lg border border-border bg-input p-3 text-sm"><option value="en">{t("English (default)")}</option><option value="id">{t("Bahasa Indonesia")}</option></select>
-          <p className="text-xs leading-5 text-muted-foreground">{t("Aturan bahasa dicantumkan otomatis saat Soul Memory dikirim ke agent atau diunduh. Gaya penulisan dan catatan yang sudah ada tetap dipertahankan.")}</p>
+          <p className="text-xs leading-5 text-muted-foreground">{t("Mengganti bahasa juga menerjemahkan tulisan Soul Memory. Makna aturan, Project Memory, dan riwayat chat tetap dipertahankan.")}</p>
         </>:tab==='profile'?<>
           <div><h3 className="font-semibold">{t("Profil")}</h3><p className="text-xs leading-5 text-muted-foreground mt-1">{t("Nama dan foto yang tampil di ruang diskusi.")}</p></div>
           <AvatarPicker value={avatar} onChange={setAvatar} initials={Array.from(name)[0]?.toUpperCase()||'U'} disabled={busy} onBusyChange={setProcessing}/>
@@ -61,6 +61,6 @@ export function SettingsDialog({open,onOpenChange,token,currentName,currentAvata
         </>}
       </div>
     </div>
-    <div className="border-t border-border p-4 flex justify-end gap-2"><Button variant="outline" disabled={busy||processing} onClick={()=>onOpenChange(false)}>{t("Tutup")}</Button><Button disabled={busy||processing||(tab==='profile'?!name.trim():tab==='soul'?!content.trim():false)} onClick={()=>void save()} className="gap-2"><Save className="h-4 w-4"/>{busy?t("Menyimpan…"):t("Simpan")}</Button></div>
+    <div className="border-t border-border p-4 flex justify-end gap-2"><Button variant="outline" disabled={busy||processing} onClick={()=>onOpenChange(false)}>{t("Tutup")}</Button><Button disabled={busy||processing||(tab==='profile'?!name.trim():tab==='soul'?!content.trim():false)} onClick={()=>void save()} className="gap-2"><Save className="h-4 w-4"/>{busy?tab==='language'?t("Menyesuaikan bahasa…"):t("Menyimpan…"):t("Simpan")}</Button></div>
   </DialogContent></Dialog>;
 }

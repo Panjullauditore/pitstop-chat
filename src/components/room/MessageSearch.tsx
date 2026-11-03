@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 
 interface Props {
   compact?: boolean;
+  wide?: boolean;
   sessions: SessionData[];
   onSelect: (sessionId:string,messageId:string,query:string)=>Promise<void>;
 }
@@ -23,7 +24,7 @@ export function HighlightMatch({text,query}:{text:string;query:string}) {
   parts.push(text.slice(position));return <>{parts}</>;
 }
 
-export function MessageSearch({sessions,onSelect,compact=false}:Props) {
+export function MessageSearch({sessions,onSelect,compact=false,wide=false}:Props) {
   const {t}=useI18n();
   const [open,setOpen]=useState(false),[query,setQuery]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const needle=query.trim().toLowerCase();
@@ -43,8 +44,8 @@ export function MessageSearch({sessions,onSelect,compact=false}:Props) {
     try{await onSelect(sessionId,messageId,query.trim());setOpen(false);}catch(error:any){setError(error.message);}finally{setBusy(false);}
   };
   return <>
-    <button type="button" aria-label={t("Cari dalam pesan")} title={t("Cari kata dalam semua chat")} className={compact?"h-9 w-9 shrink-0 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary":"h-8 flex items-center gap-1.5 rounded-md border border-border bg-secondary/60 px-2 text-muted-foreground hover:text-foreground"} onClick={()=>setOpen(true)}>
-      <Search className="w-3.5 h-3.5"/>{!compact&&<span className="hidden xl:inline text-xs">{t("Cari pesan")}</span>}
+    <button type="button" aria-label={t("Cari dalam pesan")} title={t("Cari kata dalam semua chat")} className={wide?"h-10 w-full flex items-center gap-2 rounded-md border border-border bg-background px-3 text-muted-foreground hover:border-primary/50 hover:text-foreground font-mono":compact?"h-9 w-9 shrink-0 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary":"h-8 flex items-center gap-1.5 rounded-md border border-border bg-secondary/60 px-2 text-muted-foreground hover:text-foreground"} onClick={()=>setOpen(true)}>
+      <Search className="w-3.5 h-3.5"/>{!compact&&<span className={wide?"text-xs":"hidden xl:inline text-xs"}>{t("Cari pesan")}</span>}
     </button>
     <Dialog open={open} onOpenChange={value=>{if(!busy)setOpen(value);}}><DialogContent className="max-w-xl max-h-[85vh] flex flex-col">
       <DialogHeader><DialogTitle>{t("Cari dalam pesan")}</DialogTitle><DialogDescription>{t("Cari kata atau frasa di semua sesi. Pilih hasil untuk membuka chat dan langsung menuju pesannya.")}</DialogDescription></DialogHeader>

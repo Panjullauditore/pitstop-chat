@@ -5,8 +5,8 @@ import { composeSoul, stripAutomaticMemory, COMMUNICATION_POLICY, POLICY_MARKER 
 import {soulWithLanguage} from './src/lib/language.mjs';
 
 export class Brain extends EventEmitter {
-  constructor(directory,seed,{documentPath,communicationPolicy=true,automaticMemory=true,languageDocument=false}={}) {
-    super(); this.directory=directory; this.seed=seed; this.documentPath=documentPath; this.languageDocument=languageDocument; this.communicationPolicy=communicationPolicy; this.automaticMemory=automaticMemory; this.queue=Promise.resolve();
+  constructor(directory,seed,{documentPath,communicationPolicy=true,automaticMemory=true,languageDocument=false,projectMemory=false}={}) {
+    super(); this.directory=directory; this.seed=seed; this.documentPath=documentPath; this.languageDocument=languageDocument; this.communicationPolicy=communicationPolicy; this.automaticMemory=automaticMemory; this.projectMemory=projectMemory; this.queue=Promise.resolve();
     const core=stripAutomaticMemory(seed);
     this.value={schema:1,preferences:{displayName:'Username'},soul:{content:core+(!communicationPolicy || core.includes(POLICY_MARKER)?'':'\n\n'+COMMUNICATION_POLICY),revision:1,updatedAt:new Date().toISOString()},auto:{userNotes:[],updates:[]},selections:{codex:{model:'',effort:''},antigravity:{model:'',effort:''}}};
   }
@@ -46,6 +46,7 @@ export class Brain extends EventEmitter {
     if(!content.trim() || content.length>18000)throw new Error('Bagian inti Soul harus berisi 1–18000 karakter.');
     if(revision!==this.value.soul.revision)throw new Error('Soul sudah berubah di jendela lain. Tutup lalu buka editor untuk memuat versi terbaru.');
     const next=structuredClone(this.value);next.soul={...next.soul,content:content.trim(),revision:revision+1,updatedAt:new Date().toISOString()};
+    delete next.soulLocales;
     return this.commit(next);
   });}
   pin(message){return this.enqueue(async()=>{
@@ -61,6 +62,18 @@ export class Brain extends EventEmitter {
   saveLanguage(language){return this.enqueue(async()=>{
     if(!['en','id'].includes(language))throw new Error('Choose English or Indonesian.');
     const next=structuredClone(this.value);next.preferences={...next.preferences,language};return this.commit(next);
+  });}
+  saveTranslatedLanguage(language,{content,revision,previousLanguage,sourceLanguage}){return this.enqueue(async()=>{
+    if(!['en','id'].includes(language)||typeof content!=='string'||!content.trim()||content.length>18000)throw new Error('Invalid Soul language or translation.');
+    if(revision!==this.value.soul.revision||previousLanguage!==(this.value.preferences.language||'en'))throw new Error('Soul Memory or its language changed while translating. The newer version was kept. Reopen Settings and try again.');
+    const next=structuredClone(this.value),locales=next.soulLocales;
+    const documents=locales?.documents?.[locales.documentLanguage]===next.soul.content?{...locales.documents}:{};
+    if(['en','id'].includes(sourceLanguage))documents[sourceLanguage]=next.soul.content;
+    documents[language]=content;
+    next.soulLocales={documentLanguage:language,documents};
+    next.preferences={...next.preferences,language};
+    if(content!==next.soul.content)next.soul={...next.soul,content,revision:revision+1,updatedAt:new Date().toISOString()};
+    return this.commit(next);
   });}
   saveDisplayName(displayName, avatar){return this.enqueue(async()=>{
     if(typeof displayName!=='string' || /[\u0000-\u001f\u007f]/.test(displayName))throw new Error('Nama tidak valid.');
@@ -82,10 +95,16 @@ export class Brain extends EventEmitter {
     next.soul.revision++;next.soul.updatedAt=new Date().toISOString();return this.commit(next);
   });}
   recordCheckpoint(message,control){return this.enqueue(async()=>{
-    if(!control || (!control.summary && !control.next && !control.reportedProgress))return this.snapshot();
+    if(!control || (!control.summary && !control.next && !control.reportedProgress && !control.projectMemory))return this.snapshot();
     if(this.value.auto?.updates?.some(item=>item.id===message.id))return this.snapshot();
     const next=structuredClone(this.value);next.auto ||= {userNotes:[],updates:[]};
     next.auto.updates=[...(next.auto.updates || []),{id:message.id,agent:message.role,at:message.at,summary:control.summary,next:control.next,reportedProgress:control.reportedProgress}].slice(-6);
+    const memory=control.projectMemory;
+    if(this.projectMemory&&memory&&!control.needsUser&&!control.disagreement&&memory.baseRevision===this.value.soul.revision&&typeof memory.content==='string'&&memory.content.trim()&&memory.content.length<=18000&&!memory.content.includes('<!-- PITLANE_AUTO_MEMORY -->')){
+      next.soul.content=memory.content.trim();
+      next.soul.summaryUpdatedAt=message.at;
+      next.soul.summarySource={messageId:message.id,agent:message.role};
+    }
     next.soul.revision++;next.soul.updatedAt=new Date().toISOString();return this.commit(next);
   });}
 }

@@ -422,5 +422,11 @@
   "Setelah memasang atau memperbarui extension, refresh tab Remote Control Antigravity dan biarkan terbuka. Persetujuan alat tetap dilakukan di App.": "After installing or updating the extension, refresh the Antigravity Remote Control tab and keep it open. Handle tool approvals in the App.",
   "Tautan chat Remote Control": "Remote Control chat URL",
   "Buka chat yang dipilih di Remote Control, lalu salin alamat halaman browsernya.": "Open the selected chat in Remote Control and copy its browser URL.",
-  "Limit akun App dilihat langsung di Antigravity.": "View this App account’s limits directly in Antigravity."
+  "Limit akun App dilihat langsung di Antigravity.": "View this App account’s limits directly in Antigravity.",
+  "Koneksi": "Connection",
+  "Aktivitas": "Activity",
+  "Gagal membuka proyek": "Could not open project",
+  "Mengganti bahasa juga menerjemahkan tulisan Soul Memory. Makna aturan, Project Memory, dan riwayat chat tetap dipertahankan.": "Changing the language also translates the Soul Memory text. The meaning of its rules, Project Memory, and chat history are preserved.",
+  "Simpan perubahan Soul Memory sebelum mengganti bahasa.": "Save your Soul Memory changes before switching languages.",
+  "Menyesuaikan bahasa…": "Updating language…"
 }

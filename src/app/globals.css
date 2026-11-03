@@ -1,4 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@font-face { font-family: 'Chivo'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/chivo-400.ttf') format('truetype'); }
+@font-face { font-family: 'Chivo'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/chivo-500.ttf') format('truetype'); }
+@font-face { font-family: 'Chivo'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/chivo-600.ttf') format('truetype'); }
+@font-face { font-family: 'Chivo'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/chivo-700.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/jetbrains-mono-400.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/jetbrains-mono-500.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/jetbrains-mono-600.ttf') format('truetype'); }
+@font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/space-grotesk-400.ttf') format('truetype'); }
+@font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/space-grotesk-500.ttf') format('truetype'); }
+@font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/space-grotesk-600.ttf') format('truetype'); }
+@font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/space-grotesk-700.ttf') format('truetype'); }
 
 @tailwind base;
 @tailwind components;
@@ -6,27 +16,28 @@
 
 @layer base {
   :root {
-    /* Pitlane brand: Apex Orange, Synapse Blue, Telemetry Cyan, Tarmac Slate. */
-    --background: 222.222 47.368% 11.176%; /* #0F172A */
-    --foreground: 210.000 40.000% 98.039%; /* #F8FAFC */
-    --card: 221.250 42.105% 14.902%; /* #162036 */
-    --card-foreground: 210.000 40.000% 98.039%; /* #F8FAFC */
-    --popover: 217.241 32.584% 17.451%; /* #1E293B */
-    --popover-foreground: 210.000 40.000% 98.039%; /* #F8FAFC */
-    --primary: 10.884 100.000% 57.843%; /* #FF4F28 */
-    --primary-foreground: 222.222 47.368% 11.176%; /* #0F172A */
-    --secondary: 217.241 32.584% 17.451%; /* #1E293B */
-    --secondary-foreground: 210.000 40.000% 98.039%; /* #F8FAFC */
-    --muted: 220.000 41.772% 15.490%; /* #172238 */
-    --muted-foreground: 215.000 20.225% 65.098%; /* #94A3B8 */
-    --accent: 221.212 83.193% 53.333%; /* #2563EB */
-    --accent-foreground: 210.000 40.000% 98.039%; /* #F8FAFC */
-    --destructive: 0.000 84.236% 60.196%; /* #EF4444 */
-    --destructive-foreground: 0.000 0.000% 100.000%; /* #FFFFFF */
-    --border: 215.294 25.000% 26.667%; /* #334155 */
-    --input: 220.000 41.772% 15.490%; /* #172238 */
-    --ring: 221.212 83.193% 53.333%; /* #2563EB */
-    --radius: 0.625rem;
+    /* Pitstop pit-wall theme, adapted from the supplied Stitch export. */
+    --background: 220.000 29.032% 6.078%; /* #0B0E14 */
+    --foreground: 214.286 31.818% 91.373%; /* #E2E8F0 */
+    --card: 221.250 26.667% 11.765%; /* #161B26 */
+    --card-foreground: 214.286 31.818% 91.373%; /* #E2E8F0 */
+    --popover: 221.053 28.358% 13.137%; /* #181E2B */
+    --popover-foreground: 214.286 31.818% 91.373%; /* #E2E8F0 */
+    --primary: 16.235 100.000% 50.000%; /* #FF4500 */
+    --primary-foreground: 222.857 33.333% 4.118%; /* #07090E */
+    --secondary: 222.857 28.000% 9.804%; /* #121620 */
+    --secondary-foreground: 214.286 31.818% 91.373%; /* #E2E8F0 */
+    --muted: 222.857 26.582% 15.490%; /* #1D2332 */
+    --muted-foreground: 214.839 19.497% 68.824%; /* #A0ADBF */
+    --accent: 13.263 100.000% 81.373%; /* #FFB5A0 */
+    --accent-foreground: 9.153 100.000% 11.569%; /* #3B0900 */
+    --destructive: 6.429 100.000% 83.529%; /* #FFB4AB */
+    --destructive-foreground: 357.143 100.000% 20.588%; /* #690005 */
+    --border: 220.714 22.581% 24.314%; /* #30394C */
+    --input: 222.857 28.000% 9.804%; /* #121620 */
+    --ring: 186.173 100.000% 47.647%; /* #00DAF3 */
+    --radius: 0.5rem;
+    --rail: 222.857 28% 4.902%; /* #090B10 */
   }
 }
 
@@ -37,7 +48,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Chivo', system-ui, -apple-system, sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -80,10 +91,10 @@
   animation: blink 0.9s infinite;
 }
 
-/* Shared interaction states follow the Pitlane palette. */
-::selection { background: #2563eb; color: #f8fafc; }
-textarea, input { caret-color: #06b6d4; }
-button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+/* Interaction states share the same pit-wall palette. */
+::selection { background: #FFB5A0; color: #3B0900; }
+textarea, input { caret-color: #00DAF3; }
+button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid #00DAF3; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
 
 @media (pointer: coarse) { button[aria-label] { min-width: 44px; min-height: 44px; } }
@@ -112,10 +123,20 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid
 .pitlane-team-panel[data-open="true"] { transform: translateX(0); visibility: visible; opacity: 1; }
 @media (min-width: 1280px) {
   .pitlane-team-slot { grid-template-columns: 68px; overflow: hidden; transition: grid-template-columns 240ms cubic-bezier(.16,1,.3,1); }
-  .pitlane-team-slot[data-open="true"] { grid-template-columns: 304px; }
+  .pitlane-team-slot[data-open="true"] { grid-template-columns: 320px; }
   .pitlane-team-panel { transform: translateX(20px); }
   .pitlane-team-panel[data-open="true"] { transform: translateX(0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .pitlane-team-slot, .pitlane-team-panel { transition: none; }
 }
+
+@layer base {
+  h1, h2, h3, h4, h5, h6 { font-family: 'Space Grotesk', 'Chivo', sans-serif; }
+  input, textarea, select { color-scheme: dark; }
+  button, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+}
+
+/* Composition from the supplied Stitch pit-wall preview. */
+.pitstop-transmit { background: linear-gradient(105deg, #FF570F, #F73C21); }
+.pitstop-panel { background: linear-gradient(145deg, #181D28, #10141D); }

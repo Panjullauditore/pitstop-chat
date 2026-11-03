@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="id"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Pitlane Studio - Pit Wall &amp; Race Telemetry Engine</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&amp;family=Space+Grotesk:wght@400;500;600;700&amp;family=Chivo:wght@300;400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+          "tarmac-darkest": "#07090e",
+          "tarmac-dark": "#0b0e14",
+          "tarmac-surface": "#121620",
+          "tarmac-card": "#161b26",
+          "tarmac-border": "#232a3b",
+          "tarmac-hover": "#1d2332",
+          "apex-orange": "#FF4500",
+          "apex-orange-bright": "#FF5722",
+          "apex-orange-glow": "rgba(255, 69, 0, 0.35)",
+          "pit-yellow": "#FACC15",
+          "pit-lime": "#84CC16",
+          "telemetry-cyan": "#00DAF3",
+          "telemetry-blue": "#2563EB",
+          "racing-red": "#EF4444",
+          "carbon-gray": "#333A48",
+          "surface": "#0b0e14",
+          "surface-container": "#121620",
+          "surface-container-high": "#181e2b",
+          "surface-container-highest": "#242d3d",
+          "on-surface": "#E2E8F0",
+          "on-surface-variant": "#94A3B8",
+          "primary": "#FF5722",
+          "primary-container": "#CC3800",
+          "secondary": "#94A3B8"
+        },
+        "fontFamily": {
+          "sans": ["Space Grotesk", "sans-serif"],
+          "mono": ["JetBrains Mono", "monospace"],
+          "body": ["Chivo", "sans-serif"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #0b0e14;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #232a3b;
+    border-radius: 2px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #FF4500;
+  }
+  /* Technical Carbon & Grid Weave Background */
+  .carbon-grid-bg {
+    background-color: #0b0e14;
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(255, 69, 0, 0.08) 0%, transparent 60%),
+      linear-gradient(rgba(35, 42, 59, 0.35) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(35, 42, 59, 0.35) 1px, transparent 1px);
+    background-size: 100% 100%, 28px 28px, 28px 28px;
+  }
+  .carbon-panel {
+    background: linear-gradient(145deg, #131722 0%, #0d1017 100%);
+    border: 1px solid #232a3b;
+  }
+  .gantry-light {
+    box-shadow: 0 0 8px currentColor;
+  }
+  /* Chequered flag strip pattern */
+  .chequered-strip {
+    background-image: repeating-linear-gradient(45deg, #FF4500 0, #FF4500 6px, transparent 0, transparent 12px);
+  }
+</style>
+</head>
+<body class="carbon-grid-bg text-on-surface font-body antialiased overflow-hidden h-screen w-screen selection:bg-apex-orange selection:text-white relative">
+<!-- Telemetry Toast Notification -->
+<div class="fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 bg-tarmac-card text-on-surface rounded-lg shadow-2xl border-l-4 border-apex-orange border-y border-r border-tarmac-border transition-all duration-300 transform translate-y-[-100px] opacity-0 pointer-events-none font-mono text-xs" id="toast-notify">
+<div class="w-2.5 h-2.5 rounded-full bg-apex-orange animate-ping"></div>
+<span class="text-apex-orange font-bold">[PIT TELEMETRY]</span>
+<span class="font-medium text-slate-200" id="toast-message">Telemetry Link Verified!</span>
+</div>
+<!-- 3-Pane F1 Pit Wall Shell -->
+<div class="flex h-screen w-screen overflow-hidden">
+<!-- 1. LEFT SIDEBAR: TEAM GARAGE & PADDOCK SESSIONS (Width 270px) -->
+<aside class="w-[270px] flex-shrink-0 bg-tarmac-dark border-r border-tarmac-border flex flex-col justify-between h-full select-none z-20">
+<!-- Top Section: Pitlane Brand, 5-Light Gantry & New Run -->
+<div class="p-3.5 border-b border-tarmac-border bg-[#090b10]">
+<div class="flex items-center justify-between mb-2.5">
+<div class="flex items-center gap-2.5">
+<!-- Interlocking Spiral Knot Ribbon Logo (From Official Pitlane Brand Identity) -->
+<div class="w-8 h-8 rounded-lg overflow-hidden bg-[#0A0D14] flex items-center justify-center p-1 border border-tarmac-border shadow-inner flex-shrink-0 relative group">
+<svg class="w-full h-full transform transition-transform group-hover:rotate-45 duration-500" fill="none" viewbox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+<path d="M 50 16 C 30 16 16 32 16 50 C 16 68 32 84 50 84 C 54 84 58 83 62 81" stroke="#2563EB" stroke-linecap="round" stroke-width="12"></path>
+<path d="M 50 84 C 70 84 84 68 84 50 C 84 32 68 16 50 16 C 46 16 42 17 38 19" stroke="#FF4500" stroke-linecap="round" stroke-width="12"></path>
+<path d="M 22 36 C 34 22 66 22 78 36 C 88 48 84 72 68 80" stroke="#00DAF3" stroke-linecap="round" stroke-width="10"></path>
+<path d="M 78 64 C 66 78 34 78 22 64 C 12 52 16 28 32 20" stroke="#FF5722" stroke-linecap="round" stroke-width="10"></path>
+<circle cx="50" cy="50" fill="#0A0D14" r="9"></circle>
+</svg>
+<div class="absolute inset-0 rounded-lg border border-apex-orange/30 pointer-events-none"></div>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="text-[15px] font-black tracking-tight text-white leading-none font-sans">PITLANE</span>
+<span class="w-1.5 h-1.5 rounded-full bg-apex-orange animate-ping"></span>
+</div>
+<span class="text-[8.5px] font-mono text-apex-orange tracking-widest uppercase block font-semibold">PIT WALL // MULTI-MIND</span>
+</div>
+</div>
+<!-- F1 5-Light Starting Gantry Micro Widget -->
+<div class="flex items-center gap-0.5 bg-[#05070a] px-1.5 py-1 rounded border border-tarmac-border" title="Pit Gantry Status: GREEN (PIT OPEN)">
+<span class="w-1.5 h-1.5 rounded-full bg-racing-red"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-racing-red"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-pit-lime gantry-light text-pit-lime"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-pit-lime gantry-light text-pit-lime"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-pit-lime gantry-light text-pit-lime"></span>
+</div>
+</div>
+<p class="text-[10px] font-mono text-slate-400 tracking-tight mb-2.5 flex items-center justify-between">
+<span>MULTIPLE MINDS. ONE GOAL.</span>
+<span class="text-pit-lime font-bold">PIT OPEN</span>
+</p>
+<!-- New Race Run / Sesi Baru Button -->
+<button class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-apex-orange to-red-600 hover:from-orange-500 hover:to-red-500 text-white px-3 py-2 rounded font-sans text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(255,69,0,0.4)] active:scale-[0.98]" id="btn-sesi-baru">
+<span class="material-symbols-outlined text-[16px]">sports_score</span>
+<span>+ NEW RACE RUN / SESI</span>
+<span class="ml-auto text-[9px] font-mono bg-black/40 px-1.5 py-0.5 rounded border border-white/10">⌘N</span>
+</button>
+<!-- Paddock Project Switcher Dropdown -->
+<div class="mt-2.5 pt-2 border-t border-tarmac-border/60 relative">
+<div class="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center justify-between">
+<span class="flex items-center gap-1"><span class="text-apex-orange">▲</span> PADDOCK PROJECT</span>
+<span class="text-[8.5px] text-pit-yellow bg-pit-yellow/10 border border-pit-yellow/30 px-1 rounded font-mono">ACTIVE STINT</span>
+</div>
+<button class="w-full flex items-center justify-between p-2 rounded bg-tarmac-surface hover:bg-tarmac-hover border border-tarmac-border transition-all group text-left" id="btn-project-dropdown">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-6 h-6 rounded bg-apex-orange/10 border border-apex-orange/30 text-apex-orange flex items-center justify-center flex-shrink-0 text-xs">
+<span class="material-symbols-outlined text-[15px]">flag</span>
+</div>
+<div class="min-w-0">
+<div class="text-[11px] font-bold text-slate-100 truncate group-hover:text-apex-orange transition-colors font-sans" id="current-project-title">Pipeline Data Realtime</div>
+<div class="text-[9px] font-mono text-slate-400">4 Run Stints Terpasang</div>
+</div>
+</div>
+<span class="material-symbols-outlined text-[16px] text-slate-400 group-hover:text-white transition-transform" id="project-dropdown-arrow">expand_more</span>
+</button>
+<!-- Dropdown Box List -->
+<div class="hidden absolute top-full left-0 right-0 mt-1 p-1.5 bg-tarmac-card border border-tarmac-border rounded-lg space-y-1 shadow-2xl z-30 font-mono text-xs backdrop-blur-md" id="project-dropdown-menu">
+<div class="text-[9px] text-slate-400 px-1.5 py-0.5 uppercase tracking-wider font-semibold">Ganti Garasi Project:</div>
+<button class="project-item w-full flex items-center justify-between px-2 py-1.5 rounded text-[11px] text-slate-300 hover:bg-tarmac-hover hover:text-apex-orange transition-colors text-left" data-name="Security Audit Engine" data-sessions="2 Run">
+<span class="truncate">🛡️ Security Audit Engine</span>
+<span class="text-[9px] text-slate-500">2 Run</span>
+</button>
+<button class="project-item w-full flex items-center justify-between px-2 py-1.5 rounded text-[11px] text-slate-300 hover:bg-tarmac-hover hover:text-apex-orange transition-colors text-left" data-name="Aero Dynamic Suite v2" data-sessions="5 Run">
+<span class="truncate">🏎️ Aero Dynamic Suite v2</span>
+<span class="text-[9px] text-slate-500">5 Run</span>
+</button>
+<button class="project-item w-full flex items-center justify-between px-2 py-1.5 rounded text-[11px] text-slate-300 hover:bg-tarmac-hover hover:text-apex-orange transition-colors text-left" data-name="FinOps AI Suite" data-sessions="1 Run">
+<span class="truncate">💳 FinOps AI Suite</span>
+<span class="text-[9px] text-slate-500">1 Run</span>
+</button>
+<div class="border-t border-tarmac-border my-1"></div>
+<button class="w-full flex items-center justify-center gap-1.5 py-1 text-[10px] font-mono font-bold text-apex-orange hover:bg-apex-orange/10 rounded transition-colors" id="btn-create-project">
+<span class="material-symbols-outlined text-[13px]">add</span>
+<span>+ REGISTER NEW PROJECT</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Telemetry Telemetry Quick Search Filter -->
+<div class="px-3 pt-2 pb-1 bg-tarmac-dark">
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-2 text-slate-500 text-[14px]">tune</span>
+<input class="w-full bg-[#080b10] border border-tarmac-border rounded pl-7 pr-2 py-1 text-[11px] font-mono text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-apex-orange transition-all" id="search-sessions-input" placeholder="Filter telemetry run... (⌘K)" type="text"/>
+</div>
+</div>
+<!-- Navigation Channels (Pit Wall & Soul Memory) -->
+<nav class="px-3 py-1 space-y-1">
+<a class="text-white bg-tarmac-surface border-l-2 border-apex-orange font-sans font-semibold rounded-r px-2.5 py-1.5 flex items-center gap-2 text-xs transition-all" href="#">
+<span class="material-symbols-outlined text-[16px] text-apex-orange">speed</span>
+<span>GARASI // RUN CONTROL</span>
+<span class="ml-auto w-1.5 h-1.5 rounded-full bg-apex-orange animate-ping"></span>
+</a>
+<button class="w-full text-slate-400 hover:text-slate-200 hover:bg-tarmac-surface rounded px-2.5 py-1.5 flex items-center gap-2 font-sans text-xs transition-colors text-left group" id="btn-nav-memory">
+<span class="material-symbols-outlined text-[16px] text-telemetry-cyan group-hover:text-telemetry-cyan">database</span>
+<span>SOUL MEMORY GANTRY</span>
+<span class="ml-auto text-[9px] font-mono text-telemetry-cyan bg-telemetry-cyan/10 border border-telemetry-cyan/30 px-1.5 py-0.2 rounded font-bold">2-TIER</span>
+</button>
+</nav>
+<!-- Run Plans / Session History (Motorsport Stints) -->
+<div class="flex-1 overflow-y-auto px-3 py-1 custom-scrollbar space-y-2.5" id="session-history-container">
+<!-- Stint: Current Qualifying / Run Hari Ini -->
+<div>
+<div class="flex items-center justify-between text-[9px] font-mono font-bold text-slate-500 uppercase tracking-wider px-1 py-1">
+<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-pit-lime rounded-full"></span> RUN HARI INI</span>
+<span class="text-[9px] text-slate-400">2 STINTS</span>
+</div>
+<div class="space-y-1 mt-0.5">
+<!-- Active Race Run Item -->
+<a class="session-nav-item flex items-center gap-2 px-2 py-1.5 rounded bg-gradient-to-r from-tarmac-card to-tarmac-surface border border-apex-orange/40 text-white font-sans text-xs font-semibold shadow-sm transition-all" href="#">
+<span class="w-1.5 h-1.5 rounded-full bg-apex-orange shadow-[0_0_6px_#FF4500] animate-pulse flex-shrink-0"></span>
+<div class="truncate">
+<span class="text-[9px] font-mono text-apex-orange block leading-none">STINT #01</span>
+<span class="truncate text-slate-200">Arsitektur Pipeline Data</span>
+</div>
+<span class="ml-auto text-[9px] font-mono text-apex-orange bg-apex-orange/10 border border-apex-orange/30 px-1 rounded flex-shrink-0">HOT</span>
+</a>
+<!-- Run Item 2 -->
+<a class="session-nav-item flex items-center gap-2 px-2 py-1.5 rounded text-slate-400 hover:text-slate-200 hover:bg-tarmac-surface text-xs transition-colors group" href="#">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-600 flex-shrink-0 group-hover:bg-slate-400"></span>
+<div class="truncate">
+<span class="text-[9px] font-mono text-slate-500 block leading-none">STINT #02</span>
+<span class="truncate">Refaktor Modul Auth</span>
+</div>
+</a>
+</div>
+</div>
+<!-- Group: Kemarin / Previous Stints -->
+<div>
+<div class="text-[9px] font-mono font-bold text-slate-500 uppercase tracking-wider px-1 py-0.5">
+<span>KEMARIN // PRACTICE</span>
+</div>
+<div class="space-y-1 mt-0.5">
+<a class="session-nav-item flex items-center gap-2 px-2 py-1.5 rounded text-slate-400 hover:text-slate-200 hover:bg-tarmac-surface text-xs transition-colors" href="#">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-700 flex-shrink-0"></span>
+<div class="truncate">
+<span class="text-[9px] font-mono text-slate-500 block leading-none">PRACTICE #3</span>
+<span class="truncate">Sprint Planning Q3</span>
+</div>
+</a>
+<a class="session-nav-item flex items-center gap-2 px-2 py-1.5 rounded text-slate-400 hover:text-slate-200 hover:bg-tarmac-surface text-xs transition-colors" href="#">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-700 flex-shrink-0"></span>
+<div class="truncate">
+<span class="text-[9px] font-mono text-slate-500 block leading-none">PRACTICE #2</span>
+<span class="truncate">Evaluasi Model LLM</span>
+</div>
+</a>
+</div>
+</div>
+</div>
+<!-- Bottom Section: Telemetry Fuel Gauge & Race Strategist Profile -->
+<div class="p-3 border-t border-tarmac-border bg-[#090b10] space-y-2">
+<!-- Telemetry Fuel & Soul Memory Synced Meter -->
+<div class="bg-tarmac-surface rounded p-2.5 border border-tarmac-border cursor-pointer hover:border-apex-orange transition-all" id="storage-quick-card">
+<div class="flex items-center justify-between text-[10px] font-mono mb-1">
+<span class="text-slate-400 flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px] text-telemetry-cyan">storage</span>
+            SOUL MEMORY CACHE
+          </span>
+<span class="text-apex-orange font-bold font-mono">68% [SYNCED]</span>
+</div>
+<div class="w-full bg-[#080a0e] h-1.5 rounded-full overflow-hidden border border-tarmac-border/60">
+<div class="bg-gradient-to-r from-apex-orange to-pit-yellow h-full rounded-full" style="width: 68%;"></div>
+</div>
+<div class="flex items-center justify-between text-[9px] font-mono text-slate-500 mt-1">
+<span>34.2 MB EPISODIC</span>
+<span>50 MB ALLOCATED</span>
+</div>
+</div>
+<!-- Strategist Profile Badge -->
+<div class="flex items-center justify-between p-1.5 rounded bg-tarmac-surface/60 border border-tarmac-border/60">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-7 h-7 rounded bg-apex-orange/20 border border-apex-orange/50 flex items-center justify-center font-mono font-bold text-xs text-apex-orange">
+            BP
+          </div>
+<div class="min-w-0">
+<div class="text-xs font-bold text-slate-200 truncate leading-tight font-sans">Budi Pratama</div>
+<div class="text-[9px] font-mono text-pit-yellow truncate">CHIEF RACE STRATEGIST</div>
+</div>
+</div>
+<button class="text-slate-400 hover:text-white p-1 rounded hover:bg-tarmac-hover transition-colors" onclick="showToast('Pit Wall Settings Initialized')" title="Pit Wall Setup">
+<span class="material-symbols-outlined text-[16px]">tune</span>
+</button>
+</div>
+</div>
+</aside>
+<!-- 2. CENTRAL PIT WALL TELEMETRY STREAM (Main Work Area) -->
+<main class="flex-1 flex flex-col min-w-0 bg-[#090c12] relative h-full">
+<!-- Top Pit Wall Telemetry Bar -->
+<header class="h-14 bg-tarmac-dark border-b border-tarmac-border px-5 flex items-center justify-between flex-shrink-0 z-10">
+<!-- Left: Pit Wall Channel & Session Breadcrumb -->
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-7 h-7 rounded bg-apex-orange/10 border border-apex-orange/30 flex items-center justify-center text-apex-orange flex-shrink-0">
+<span class="material-symbols-outlined text-[17px]">sensors</span>
+</div>
+<div class="min-w-0">
+<div class="flex items-center gap-2 text-[10px] font-mono text-slate-400 mb-0.5">
+<span class="inline-flex items-center gap-1 text-slate-300 font-medium">
+<span class="text-apex-orange">PITLANE PIT WALL</span> // LIVE TELEMETRY
+            </span>
+<span class="text-slate-600">/</span>
+<span class="text-pit-yellow" id="breadcrumb-project">PROJECT: PIPELINE DATA REALTIME</span>
+</div>
+<div class="flex items-center gap-2">
+<h1 class="text-sm font-bold text-white truncate font-sans tracking-wide">Arsitektur Pipeline Data &amp; Orchestration</h1>
+<span class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-mono bg-pit-lime/10 text-pit-lime border border-pit-lime/30 font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-pit-lime animate-pulse"></span>
+              PIT LIVE
+            </span>
+</div>
+</div>
+</div>
+<!-- Right: Team Radio HUD, Telemetry Counter, Soul Memory Gantry Action -->
+<div class="flex items-center gap-3">
+<!-- Team Radio On-Air Indicator -->
+<div class="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-red-950/40 border border-red-800/40 rounded text-[10px] font-mono text-racing-red animate-pulse">
+<span class="material-symbols-outlined text-[13px]">radio</span>
+<span class="font-bold tracking-wider">TEAM RADIO ON AIR</span>
+</div>
+<!-- Telemetry Agent Micro-Roster -->
+<div class="hidden lg:flex items-center -space-x-1 pl-2 pr-2.5 py-1 bg-tarmac-surface rounded border border-tarmac-border cursor-pointer hover:border-slate-500 transition-colors" onclick="document.getElementById('right-roster-panel').classList.toggle('hidden')" title="Pit Crew Live Telemetry">
+<div class="relative group" title="Codex Lead (Race Engineer - Connected)">
+<div class="w-5 h-5 rounded bg-slate-900 border border-tarmac-border text-white text-[9px] font-mono flex items-center justify-center font-bold">CX</div>
+<span class="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-pit-lime ring-1 ring-black"></span>
+</div>
+<div class="relative group" title="Antigravity (Aero Strategist - Connected)">
+<div class="w-5 h-5 rounded bg-slate-800 border border-tarmac-border text-white text-[9px] font-mono flex items-center justify-center font-bold">AG</div>
+<span class="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-pit-lime ring-1 ring-black"></span>
+</div>
+<div class="relative group" title="Claude (Power Unit Orchestrator - Standby)">
+<div class="w-5 h-5 rounded bg-apex-orange/20 border border-apex-orange text-apex-orange text-[9px] font-mono flex items-center justify-center font-bold">CL</div>
+<span class="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-pit-yellow ring-1 ring-black"></span>
+</div>
+<span class="pl-2 text-[10px] font-mono text-slate-300 font-semibold">3 CREW ACTIVE</span>
+</div>
+<!-- Telemetry Delta HUD / Token Counter -->
+<div class="hidden xl:flex items-center gap-1.5 px-2.5 py-1 bg-tarmac-card border border-tarmac-border rounded text-[10px] font-mono text-slate-300 shadow-inner">
+<span class="text-telemetry-cyan font-bold">FLOW:</span>
+<span class="text-slate-200" id="token-usage-counter">42.5k / 100k TOKENS</span>
+<span class="text-pit-lime text-[9px]">(-12ms △)</span>
+</div>
+<!-- Soul Memory Gantry Button -->
+<button class="inline-flex items-center gap-1.5 bg-gradient-to-r from-tarmac-surface to-tarmac-card hover:from-tarmac-hover hover:to-tarmac-surface border border-tarmac-border hover:border-telemetry-cyan px-2.5 py-1.5 rounded font-mono text-xs font-semibold text-slate-200 transition-all shadow-sm active:scale-95 group" id="btn-toggle-soul-memory">
+<span class="material-symbols-outlined text-[15px] text-telemetry-cyan group-hover:rotate-45 transition-transform">neurology</span>
+<span>SOUL MEMORY</span>
+<span class="w-1.5 h-1.5 rounded-full bg-telemetry-cyan shadow-[0_0_6px_#00DAF3]"></span>
+</button>
+<!-- Toggle Pit Crew Panel -->
+<button class="p-1.5 rounded bg-tarmac-surface hover:bg-tarmac-hover border border-tarmac-border text-slate-400 hover:text-white transition-colors" id="btn-toggle-roster" title="Toggle Pit Crew Telemetry">
+<span class="material-symbols-outlined text-[17px]">view_sidebar</span>
+</button>
+</div>
+</header>
+<!-- Collaborative Radio Stream & Telemetry Log Area -->
+<div class="flex-1 overflow-y-auto px-5 py-5 custom-scrollbar space-y-4" id="chat-messages-container">
+<div class="max-w-[880px] mx-auto space-y-4">
+<!-- Race Stint Session Initiation Banner -->
+<div class="text-center py-1">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded bg-[#0b0f17] border border-tarmac-border text-slate-400 text-[10px] font-mono shadow-sm">
+<span class="w-2 h-2 bg-pit-lime rounded-full animate-ping"></span>
+<span class="text-apex-orange font-bold">[PIT GATE OPEN]</span>
+<span>STINT #01 INITIALIZED • ENCRYPTED PIT RADIO &amp; CAN-BUS TELEMETRY ACTIVE</span>
+</div>
+</div>
+<!-- 1. Human / Race Strategist Radio Message: Budi Pratama -->
+<div class="flex gap-3 justify-end items-start group">
+<div class="flex flex-col items-end max-w-[85%]">
+<div class="flex items-center gap-2 mb-1 px-1 font-mono text-[10px]">
+<span class="text-pit-yellow font-bold uppercase tracking-wider">Budi Pratama</span>
+<span class="text-slate-500">// CHIEF RACE STRATEGIST</span>
+<span class="text-slate-400 bg-tarmac-surface px-1 rounded border border-tarmac-border">RADIO TX • 10:14:02 WIB</span>
+</div>
+<!-- Strategist Transmission Bubble -->
+<div class="bg-gradient-to-b from-tarmac-card to-[#121620] border-l-4 border-l-apex-orange border-y border-r border-tarmac-border rounded-xl rounded-tr-none px-4 py-3 text-slate-200 text-xs shadow-lg space-y-1">
+<div class="font-mono text-[9px] text-apex-orange font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
+<span class="material-symbols-outlined text-[12px]">mic</span>
+<span>DIRECTIVE TO PIT CREW AGENTS:</span>
+</div>
+<p class="font-sans text-xs leading-relaxed text-slate-200 font-medium">
+                "Tim pit wall, kita perlu merancang arsitektur pipeline pemrosesan data real-time dengan latency di bawah 200ms p99. <strong class="text-white">Codex</strong> fokus pada skema event broker ingest tier, <strong class="text-white">Antigravity</strong> pada multi-region failover circuit breaker, dan <strong class="text-white">Claude</strong> pada orkestrasi batch micro-stint."
+              </p>
+</div>
+</div>
+<div class="w-8 h-8 rounded bg-apex-orange/20 border border-apex-orange text-apex-orange flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 mt-6 shadow-md">
+            BP
+          </div>
+</div>
+<!-- 2. Agent Telemetry Response: Codex Lead (Chief Race Engineer) -->
+<div class="flex gap-3 items-start group">
+<div class="w-8 h-8 rounded bg-[#0e121a] border border-apex-orange/40 text-apex-orange flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 mt-1 shadow-md">
+            CX
+          </div>
+<div class="flex-1 max-w-[90%] space-y-1.5">
+<!-- Agent Meta Header -->
+<div class="flex items-center gap-2 flex-wrap font-mono text-[10px]">
+<span class="text-white font-bold font-sans text-xs">Codex Lead</span>
+<span class="px-1.5 py-0.5 rounded bg-tarmac-surface text-slate-300 border border-tarmac-border">CHIEF RACE ENGINEER // gpt-4o</span>
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-apex-orange/10 text-apex-orange border border-apex-orange/30 font-bold">
+<span class="material-symbols-outlined text-[11px]">bolt</span>
+<span>EFFORT: HIGH (FULL RPM)</span>
+</span>
+<span class="text-pit-lime ml-auto">DELTA: 120ms △ • 10:15 WIB</span>
+</div>
+<!-- Agent Content Box -->
+<div class="bg-tarmac-card border border-tarmac-border rounded-xl rounded-tl-none p-4 text-xs text-slate-200 shadow-lg space-y-3">
+<p class="leading-relaxed">
+                Telemetry acknowledge, Strategist. Saya telah memetakan skema ingest berbasis cluster event-broker terdistribusi. Untuk menjamin p99 latency &lt; 200ms pada beban puncak 450 MB/s, partisi dinamis dikonfigurasi dengan hash routing berbasis partition key entitas bisnis.
+              </p>
+<!-- ECU / Telemetry Config YAML with Motorsport Styling -->
+<div class="rounded-lg bg-[#080b10] border border-tarmac-border overflow-hidden">
+<div class="flex items-center justify-between px-3 py-1.5 bg-[#0e121b] border-b border-tarmac-border text-[10px] font-mono text-slate-400">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-apex-orange"></span>
+<span class="text-slate-300 font-bold">kafka-cluster-partitioning.yaml</span>
+<span class="text-[9px] text-slate-500">[ECU TELEMETRY INGEST]</span>
+</div>
+<button class="btn-copy-code hover:text-apex-orange transition-colors flex items-center gap-1 py-0.5 px-2 rounded bg-tarmac-surface border border-tarmac-border text-slate-300" data-code="version: '3.8'
+pipeline:
+  ingest_tier:
+    broker: 'managed-kafka-cluster'
+    partitions_per_topic: 24
+    compression_type: 'snappy'
+    linger_ms: 5
+    acks: 'all'
+    in_flight_requests_per_connection: 1
+    target_throughput_mb_s: 450">
+<span class="material-symbols-outlined text-[12px]">content_copy</span>
+<span class="copy-text-label">COPY CONFIG</span>
+</button>
+</div>
+<pre class="p-3 text-[11px] font-mono text-slate-300 overflow-x-auto leading-relaxed selection:bg-apex-orange"><code>version: '3.8'
+pipeline:
+  ingest_tier:
+    broker: "managed-kafka-cluster"
+    partitions_per_topic: 24
+    compression_type: "snappy"
+    linger_ms: 5 # low-latency tuning &lt; 10ms batch window
+    acks: "all"
+    in_flight_requests_per_connection: 1
+    target_throughput_mb_s: 450</code></pre>
+</div>
+<div class="p-2 rounded bg-[#0b0e14] border border-tarmac-border text-[11px] font-mono text-slate-400 flex items-center justify-between">
+<span>Rekomendasi pitstop: Antigravity dapat memvalidasi sinkronisasi cross-zone replikasi.</span>
+<span class="text-telemetry-cyan font-bold">CHECKSUM: 0x88F2A</span>
+</div>
+</div>
+<!-- Inline Telemetry Action Bar -->
+<div class="flex items-center gap-3 pl-1 font-mono text-[10px]">
+<button class="inline-flex items-center gap-1 text-slate-400 hover:text-apex-orange transition-colors" onclick="showToast('Parameter topik Kafka dikalibrasi di pit')">
+<span class="material-symbols-outlined text-[13px]">tune</span>
+<span>KALIBRASI KAFKA</span>
+</button>
+<span class="text-slate-700">|</span>
+<button class="inline-flex items-center gap-1 text-slate-400 hover:text-telemetry-cyan transition-colors" onclick="showToast('Disimpan ke Soul Memory Tier-2 (Sesi)')">
+<span class="material-symbols-outlined text-[13px]">bookmark</span>
+<span>COMMIT TO SOUL MEMORY</span>
+</button>
+</div>
+</div>
+</div>
+<!-- 3. Agent Telemetry Response: Antigravity (Aero & Failover Strategist) -->
+<div class="flex gap-3 items-start group">
+<div class="w-8 h-8 rounded bg-[#0e121a] border border-telemetry-cyan/40 text-telemetry-cyan flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 mt-1 shadow-md">
+            AG
+          </div>
+<div class="flex-1 max-w-[90%] space-y-1.5">
+<!-- Agent Header Meta -->
+<div class="flex items-center gap-2 flex-wrap font-mono text-[10px]">
+<span class="text-white font-bold font-sans text-xs">Antigravity</span>
+<span class="px-1.5 py-0.5 rounded bg-tarmac-surface text-slate-300 border border-tarmac-border">AERO &amp; FAILOVER STRATEGIST // deepseek-v3</span>
+<span class="px-1.5 py-0.5 rounded bg-cyan-950/40 text-telemetry-cyan border border-telemetry-cyan/30">DAEMON: LOCAL CLI</span>
+<span class="text-pit-lime ml-auto">DELTA: 240ms △ • 10:16 WIB</span>
+</div>
+<!-- Agent Content Card -->
+<div class="bg-tarmac-card border border-tarmac-border rounded-xl rounded-tl-none p-4 text-xs text-slate-200 shadow-lg space-y-3">
+<p class="leading-relaxed">
+                Mengevaluasi parameter Codex: setting <code class="text-apex-orange bg-black/40 px-1 py-0.5 rounded border border-tarmac-border font-mono">linger_ms: 5</code> berisiko saat ada broker thermal throttling. Kita pasang protokol circuit breaker otomatis:
+              </p>
+<!-- Motorsport Protocol Box -->
+<div class="p-3 rounded-lg bg-[#0b0e14] border-l-4 border-telemetry-cyan border-y border-r border-tarmac-border space-y-2">
+<div class="font-mono text-xs font-bold text-white flex items-center gap-1.5">
+<span class="material-symbols-outlined text-telemetry-cyan text-[16px]">security</span>
+<span>PROTOKOL FAILOVER CIRCUIT BREAKER &amp; REDUNDANSI:</span>
+</div>
+<ul class="font-mono text-[11px] text-slate-300 space-y-1.5 list-none">
+<li class="flex items-start gap-2">
+<span class="text-telemetry-cyan font-bold">▸</span>
+<span>Envoy Service Mesh sidecar dengan threshold sliding-window error rate dipatok ketat pada <strong class="text-white">1.5%</strong>.</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="text-telemetry-cyan font-bold">▸</span>
+<span>Otomatis degrade ke buffer NVMe storage lokal saat heartbeat cross-zone latensi melampaui <strong class="text-pit-yellow">80ms</strong>.</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="text-telemetry-cyan font-bold">▸</span>
+<span>SLA Zero Data Loss Target: <strong class="text-pit-lime">RPO = 0, RTO &lt; 8 detik</strong> terjamin.</span>
+</li>
+</ul>
+</div>
+</div>
+<!-- Inline Action -->
+<div class="flex items-center gap-2 pl-1 font-mono text-[10px]">
+<button class="inline-flex items-center gap-1 text-slate-400 hover:text-telemetry-cyan transition-colors" onclick="showToast('Diagram failover ditransmisikan ke display kanvas')">
+<span class="material-symbols-outlined text-[13px]">schema</span>
+<span>OPEN FAILOVER TELEMETRY DIAGRAM</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Dynamic Append Target Container for New Messages -->
+<div class="space-y-4" id="dynamic-chat-feed"></div>
+</div>
+</div>
+<!-- 3. LEAD STRATEGIST CONSOLE COMPOSER (Bottom Docked Radio Console) -->
+<footer class="p-3.5 bg-tarmac-dark border-t border-tarmac-border flex-shrink-0 z-10">
+<div class="max-w-[880px] mx-auto bg-tarmac-card border border-tarmac-border rounded-xl p-3 shadow-2xl space-y-2.5 focus-within:border-apex-orange transition-all relative">
+<!-- Top Row: Recipient Selector Pills & Memory Sync -->
+<div class="flex items-center justify-between border-b border-tarmac-border pb-2 flex-wrap gap-2">
+<div class="flex items-center gap-1.5 text-xs font-mono" id="recipient-pill-group">
+<span class="text-slate-400 font-bold mr-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-apex-orange">cell_tower</span>
+              RADIO TARGET:
+            </span>
+<button class="target-pill inline-flex items-center gap-1 px-2.5 py-1 rounded bg-apex-orange text-white text-[10px] font-bold font-mono tracking-wider shadow-[0_0_8px_rgba(255,69,0,0.4)]" data-target="broadcast">
+<span class="material-symbols-outlined text-[12px]">broadcast_on_personal</span>
+<span>ALL CREW (BROADCAST)</span>
+</button>
+<button class="target-pill inline-flex items-center gap-1 px-2 py-0.5 rounded text-slate-400 hover:text-white hover:bg-tarmac-hover text-[10px] font-mono transition-colors" data-target="Codex">
+<span>@Codex (Engineer)</span>
+</button>
+<button class="target-pill inline-flex items-center gap-1 px-2 py-0.5 rounded text-slate-400 hover:text-white hover:bg-tarmac-hover text-[10px] font-mono transition-colors" data-target="Antigravity">
+<span>@Antigravity (Aero)</span>
+</button>
+<button class="target-pill inline-flex items-center gap-1 px-2 py-0.5 rounded text-slate-400 hover:text-white hover:bg-tarmac-hover text-[10px] font-mono transition-colors" data-target="Claude">
+<span>@Claude (PowerUnit)</span>
+</button>
+</div>
+<!-- Memory Sync Toggle Indicator -->
+<label class="inline-flex items-center gap-1.5 cursor-pointer text-[10px] font-mono text-slate-400 select-none">
+<input checked="" class="rounded border-tarmac-border text-apex-orange focus:ring-0 bg-tarmac-surface" id="sync-memory-checkbox" type="checkbox"/>
+<span class="material-symbols-outlined text-[13px] text-telemetry-cyan">neurology</span>
+<span>AUTO-SYNC SOUL MEMORY</span>
+</label>
+</div>
+<!-- Central Textarea -->
+<textarea class="w-full bg-transparent border-0 p-1 font-body text-sm text-slate-100 placeholder:text-slate-500 focus:ring-0 resize-none leading-relaxed" id="composer-input" placeholder="Kirim instruksi radio ke pit crew agents atau ketik @ untuk instruksi spesifik..." rows="2"></textarea>
+<!-- Bottom Action Bar & Send Button -->
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-1 text-slate-400">
+<button class="p-1.5 rounded hover:bg-tarmac-hover hover:text-white transition-colors" onclick="showToast('Attach Telemetry Telemetry Log...')" title="Lampirkan File / Telemetry Log">
+<span class="material-symbols-outlined text-[17px]">attach_file</span>
+</button>
+<button class="p-1.5 rounded hover:bg-tarmac-hover hover:text-white transition-colors" onclick="insertCodeSample()" title="Masukkan Snippet Kode / ECU Config">
+<span class="material-symbols-outlined text-[17px]">code</span>
+</button>
+<button class="p-1.5 rounded hover:bg-tarmac-hover hover:text-telemetry-cyan transition-colors" onclick="toggleSoulMemoryDrawer(true)" title="Buka Soul Memory Gantry">
+<span class="material-symbols-outlined text-[17px]">neurology</span>
+</button>
+<div class="h-4 w-px bg-tarmac-border mx-1"></div>
+<span class="text-[10px] font-mono text-slate-500 hidden sm:inline">⏎ Transmit Radio • Shift+⏎ New Line</span>
+</div>
+<!-- Send Action Button -->
+<button class="inline-flex items-center gap-2 bg-gradient-to-r from-apex-orange to-red-600 hover:from-orange-500 hover:to-red-500 text-white px-4 py-2 rounded font-mono text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(255,69,0,0.35)] active:scale-95 group" id="btn-send-message">
+<span>RADIO TRANSMIT</span>
+<span class="material-symbols-outlined text-[15px] group-hover:translate-x-0.5 transition-transform">send</span>
+</button>
+</div>
+</div>
+</footer>
+</main>
+<!-- 3. RIGHT PANEL: PIT CREW ROSTER & TELEMETRY GAUGES (Width 310px) -->
+<aside class="w-[310px] flex-shrink-0 bg-tarmac-dark border-l border-tarmac-border flex flex-col justify-between h-full select-none z-20" id="right-roster-panel">
+<!-- Panel Header -->
+<div class="p-3.5 border-b border-tarmac-border flex items-center justify-between bg-[#090b10]">
+<div>
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-pit-lime animate-ping"></span>
+<h2 class="text-xs font-bold text-white uppercase tracking-wider font-mono">PIT CREW TELEMETRY</h2>
+</div>
+<p class="text-[9px] font-mono text-slate-400" id="roster-status-subtitle">3 CONNECTED • 1 IN GARAGE</p>
+</div>
+<!-- Add Agent CTA -->
+<button class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-apex-orange/10 hover:bg-apex-orange text-apex-orange hover:text-white border border-apex-orange/40 text-[10px] font-mono font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95" id="btn-open-add-agent">
+<span class="material-symbols-outlined text-[13px]">person_add</span>
+<span>+ CREW AGENT</span>
+</button>
+</div>
+<!-- Agent Cards Stream (Scrollable) -->
+<div class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar" id="roster-cards-container">
+<!-- Pit Crew Card 1: Codex Lead (Chief Race Engineer) -->
+<div class="bg-tarmac-card border border-tarmac-border rounded-xl p-3 shadow-md hover:border-apex-orange transition-all space-y-2 relative overflow-hidden group">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-2">
+<div class="relative">
+<div class="w-8 h-8 rounded bg-[#0a0d14] border border-tarmac-border text-white text-xs font-mono font-bold flex items-center justify-center">
+                CX
+              </div>
+<span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-pit-lime ring-2 ring-black"></span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<h3 class="text-xs font-bold text-white font-sans leading-tight">Codex Lead</h3>
+<span class="text-[8.5px] font-mono px-1 rounded bg-[#0a0d14] text-pit-lime border border-pit-lime/30 font-bold">CLI</span>
+</div>
+<span class="text-[10px] font-mono text-slate-400">Chief Race Engineer • gpt-4o</span>
+</div>
+</div>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-mono bg-apex-orange/10 text-apex-orange border border-apex-orange/30 font-bold">HIGH RPM</span>
+</div>
+<!-- Telemetry Gauges Grid -->
+<div class="grid grid-cols-2 gap-2 pt-1 border-t border-tarmac-border font-mono text-[10px]">
+<div>
+<span class="text-slate-500 block text-[9px]">GANTRY STATUS:</span>
+<span class="font-bold text-pit-lime">● CONNECTED</span>
+</div>
+<div>
+<span class="text-slate-500 block text-[9px]">TELEMETRY DELTA:</span>
+<span class="font-bold text-slate-200">120ms △</span>
+</div>
+</div>
+<div class="font-mono text-[10px] text-slate-400 flex items-center justify-between pt-0.5 border-t border-tarmac-border/60">
+<span class="text-slate-500">FUEL CONSUMPTION:</span>
+<span class="font-bold text-slate-200">18.4k tokens</span>
+</div>
+</div>
+<!-- Pit Crew Card 2: Antigravity (Aero Strategist) -->
+<div class="bg-tarmac-card border border-tarmac-border rounded-xl p-3 shadow-md hover:border-telemetry-cyan transition-all space-y-2 group">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-2">
+<div class="relative">
+<div class="w-8 h-8 rounded bg-[#0a0d14] border border-tarmac-border text-telemetry-cyan text-xs font-mono font-bold flex items-center justify-center">
+                AG
+              </div>
+<span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-pit-lime ring-2 ring-black"></span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<h3 class="text-xs font-bold text-white font-sans leading-tight">Antigravity</h3>
+<span class="text-[8.5px] font-mono px-1 rounded bg-[#0a0d14] text-telemetry-cyan border border-telemetry-cyan/30 font-bold">CLI</span>
+</div>
+<span class="text-[10px] font-mono text-slate-400">Aero &amp; Failover • deepseek-v3</span>
+</div>
+</div>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-mono bg-cyan-950/40 text-telemetry-cyan border border-telemetry-cyan/30 font-bold">OPTIMAL</span>
+</div>
+<div class="grid grid-cols-2 gap-2 pt-1 border-t border-tarmac-border font-mono text-[10px]">
+<div>
+<span class="text-slate-500 block text-[9px]">GANTRY STATUS:</span>
+<span class="font-bold text-pit-lime">● CONNECTED</span>
+</div>
+<div>
+<span class="text-slate-500 block text-[9px]">TELEMETRY DELTA:</span>
+<span class="font-bold text-slate-200">240ms △</span>
+</div>
+</div>
+<div class="font-mono text-[10px] text-slate-400 flex items-center justify-between pt-0.5 border-t border-tarmac-border/60">
+<span class="text-slate-500">FUEL CONSUMPTION:</span>
+<span class="font-bold text-slate-200">12.1k tokens</span>
+</div>
+</div>
+<!-- Pit Crew Card 3: Claude Orchestrator (Power Unit) -->
+<div class="bg-tarmac-card border border-tarmac-border rounded-xl p-3 shadow-md hover:border-pit-yellow transition-all space-y-2 group">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-2">
+<div class="relative">
+<div class="w-8 h-8 rounded bg-[#0a0d14] border border-pit-yellow/40 text-pit-yellow text-xs font-mono font-bold flex items-center justify-center">
+                CL
+              </div>
+<span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-pit-yellow ring-2 ring-black"></span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<h3 class="text-xs font-bold text-white font-sans leading-tight">Claude</h3>
+<span class="text-[8.5px] font-mono px-1 rounded bg-[#0a0d14] text-pit-yellow border border-pit-yellow/30 font-bold">STANDBY</span>
+</div>
+<span class="text-[10px] font-mono text-slate-400">Power Unit Orchestrator • 3.5</span>
+</div>
+</div>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-mono bg-yellow-950/40 text-pit-yellow border border-pit-yellow/30 font-bold">BOX BOX</span>
+</div>
+<div class="grid grid-cols-2 gap-2 pt-1 border-t border-tarmac-border font-mono text-[10px]">
+<div>
+<span class="text-slate-500 block text-[9px]">GANTRY STATUS:</span>
+<span class="font-bold text-pit-yellow">▲ STANDBY</span>
+</div>
+<div>
+<span class="text-slate-500 block text-[9px]">TELEMETRY DELTA:</span>
+<span class="font-bold text-slate-200">95ms △</span>
+</div>
+</div>
+<div class="font-mono text-[10px] text-slate-400 flex items-center justify-between pt-0.5 border-t border-tarmac-border/60">
+<span class="text-slate-500">FUEL CONSUMPTION:</span>
+<span class="font-bold text-slate-200">14.0k tokens</span>
+</div>
+</div>
+<!-- Pit Crew Card 4: Llama Scout (Track Scout - In Garage / Offline) -->
+<div class="bg-tarmac-surface/60 border border-dashed border-tarmac-border rounded-xl p-3 opacity-70 hover:opacity-100 transition-opacity space-y-2" id="card-llama-scout">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-2">
+<div class="relative">
+<div class="w-8 h-8 rounded bg-[#0a0d14] border border-tarmac-border text-slate-500 text-xs font-mono font-bold flex items-center justify-center">
+                LS
+              </div>
+<span class="status-indicator-dot absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-slate-600 ring-2 ring-black"></span>
+</div>
+<div>
+<h3 class="text-xs font-bold text-slate-400 font-sans leading-tight">Llama Scout</h3>
+<span class="text-[10px] font-mono text-slate-500">Track Scout • llama-3.1-70b</span>
+</div>
+</div>
+<span class="status-badge-text text-[8.5px] font-mono text-slate-500 px-1.5 py-0.5 rounded bg-black/40 border border-tarmac-border uppercase">IN GARAGE</span>
+</div>
+<div class="pt-1">
+<button class="w-full py-1 rounded border border-tarmac-border hover:border-apex-orange text-[10px] font-mono font-bold text-slate-400 hover:text-apex-orange transition-colors flex items-center justify-center gap-1 active:scale-95" id="btn-reconnect-llama">
+<span class="material-symbols-outlined text-[13px]">refresh</span>
+<span>RECONNECT TO PIT DAEMON</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Soul Memory Summary Gantry Box (Bottom of Panel) -->
+<div class="p-3 border-t border-tarmac-border bg-[#090b10]">
+<div class="rounded-xl bg-tarmac-card border border-tarmac-border p-3 space-y-2">
+<div class="flex items-center justify-between">
+<span class="text-xs font-mono font-bold text-white flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-telemetry-cyan">neurology</span>
+<span>SOUL MEMORY GANTRY</span>
+</span>
+<span class="inline-flex items-center px-1.5 py-0.2 rounded text-[8.5px] font-mono bg-apex-orange/10 text-apex-orange border border-apex-orange/30 font-bold">LOCKED</span>
+</div>
+<div class="space-y-1.5 text-[10px] font-mono">
+<div class="p-1.5 rounded bg-[#080b10] border border-tarmac-border">
+<div class="flex items-center justify-between text-slate-400 text-[9px] mb-0.5">
+<span class="text-apex-orange font-bold">TIER 1 (GLOBAL):</span>
+<span>INVARIANT</span>
+</div>
+<p class="text-slate-300 leading-tight">SLA Latency &lt; 200ms, multi-zone failover, Zero Data Loss (RPO=0).</p>
+</div>
+<div class="p-1.5 rounded bg-[#080b10] border border-tarmac-border">
+<div class="flex items-center justify-between text-slate-400 text-[9px] mb-0.5">
+<span class="text-telemetry-cyan font-bold">TIER 2 (STINT):</span>
+<span>ACTIVE RUN</span>
+</div>
+<p class="text-slate-300 leading-tight">3 Goals &amp; 5 Decisions locked to Kafka partition hash routing.</p>
+</div>
+</div>
+<button class="w-full py-1.5 rounded bg-tarmac-surface hover:bg-tarmac-hover text-slate-200 border border-tarmac-border text-[10px] font-mono font-bold transition-colors flex items-center justify-center gap-1 active:scale-98" id="btn-open-memory-drawer-footer">
+<span class="material-symbols-outlined text-[13px]">open_in_new</span>
+<span>OPEN FULL MEMORY GANTRY</span>
+</button>
+</div>
+</div>
+</aside>
+</div>
+<!-- ============================================================ -->
+<!-- MODAL: REGISTER CREW AGENT & CLI PIT DAEMON                  -->
+<!-- ============================================================ -->
+<div class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-opacity" id="modal-add-agent">
+<div class="bg-tarmac-card w-full max-w-lg rounded-2xl border border-tarmac-border shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+<!-- Header -->
+<div class="p-4 border-b border-tarmac-border flex items-center justify-between bg-tarmac-dark">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded bg-apex-orange/10 border border-apex-orange/30 text-apex-orange flex items-center justify-center font-bold">
+<span class="material-symbols-outlined text-[18px]">terminal</span>
+</div>
+<div>
+<h2 class="text-sm font-bold text-white uppercase font-sans">REGISTER NEW PIT CREW AGENT</h2>
+<p class="text-[10px] font-mono text-slate-400">Hubungkan AI model via Pitlane CLI daemon atau Direct Endpoint</p>
+</div>
+</div>
+<button class="text-slate-400 hover:text-white p-1 rounded hover:bg-tarmac-surface transition-colors" id="btn-close-modal-x">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Modal Body Content -->
+<div class="p-5 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar font-mono text-xs">
+<!-- Tab Header Selector -->
+<div class="grid grid-cols-2 p-1 bg-[#090b10] border border-tarmac-border rounded-lg text-center text-[11px] font-mono font-bold">
+<button class="py-1.5 rounded bg-apex-orange text-white shadow font-bold transition-all uppercase" id="tab-btn-cli">
+          LOCAL PIT DAEMON (CLI)
+        </button>
+<button class="py-1.5 rounded text-slate-400 hover:text-white transition-all uppercase" id="tab-btn-api">
+          TELEMETRY API DIRECT
+        </button>
+</div>
+<!-- Tab Content 1: CLI Provider Selection -->
+<div class="space-y-3" id="tab-content-cli">
+<label class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block">Pilih Daemon CLI Provider Terpasang</label>
+<div class="grid grid-cols-3 gap-2">
+<!-- Option 1: Codex CLI -->
+<div class="provider-option border-2 border-apex-orange bg-apex-orange/10 rounded-lg p-2.5 cursor-pointer text-center transition-all" data-provider="Codex CLI">
+<span class="material-symbols-outlined text-[20px] text-apex-orange block mx-auto mb-1">terminal</span>
+<div class="text-[11px] font-bold text-white font-sans">Codex CLI</div>
+<div class="text-[9px] font-mono text-pit-lime font-bold">CONNECTED</div>
+</div>
+<!-- Option 2: Antigravity CLI -->
+<div class="provider-option border border-tarmac-border bg-tarmac-surface hover:border-slate-500 rounded-lg p-2.5 cursor-pointer text-center transition-all" data-provider="Antigravity CLI">
+<span class="material-symbols-outlined text-[20px] text-slate-400 block mx-auto mb-1">developer_board</span>
+<div class="text-[11px] font-bold text-white font-sans">Antigravity</div>
+<div class="text-[9px] font-mono text-slate-400">INSTALLED</div>
+</div>
+<!-- Option 3: Claude CLI -->
+<div class="provider-option border border-tarmac-border bg-tarmac-surface hover:border-slate-500 rounded-lg p-2.5 cursor-pointer text-center transition-all" data-provider="Claude CLI">
+<span class="material-symbols-outlined text-[20px] text-slate-400 block mx-auto mb-1">neurology</span>
+<div class="text-[11px] font-bold text-white font-sans">Claude CLI</div>
+<div class="text-[9px] font-mono text-pit-yellow">STANDBY</div>
+</div>
+</div>
+<div class="p-2.5 rounded bg-[#080b10] border border-tarmac-border text-[10px] font-mono text-slate-400 flex items-start gap-2">
+<span class="material-symbols-outlined text-[15px] text-telemetry-cyan flex-shrink-0 mt-0.5">info</span>
+<div>
+            Pitlane Unix Domain Socket: <code class="text-white bg-tarmac-card px-1 py-0.5 rounded">/var/run/pitlane.sock</code> (Active Speed: 10Gbps)
+          </div>
+</div>
+</div>
+<!-- Tab Content 2: Direct API Key -->
+<div class="hidden space-y-3" id="tab-content-api">
+<div>
+<label class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">ENDPOINT BASE URL</label>
+<input class="w-full bg-[#080b10] border border-tarmac-border rounded px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-apex-orange" placeholder="https://api.openai.com/v1" type="text" value="https://api.openai.com/v1"/>
+</div>
+<div>
+<label class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">API TOKEN / PIT KEY</label>
+<input class="w-full bg-[#080b10] border border-tarmac-border rounded px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-apex-orange" placeholder="sk-pitlane-••••••••••••••••" type="password"/>
+</div>
+</div>
+<!-- Common Agent Setup -->
+<div class="space-y-3 pt-2 border-t border-tarmac-border">
+<div>
+<label class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">NAMA CREW AGENT (CALLSIGN)</label>
+<input class="w-full bg-[#080b10] border border-tarmac-border rounded px-3 py-2 text-xs font-body text-slate-200 focus:outline-none focus:border-apex-orange" id="input-new-agent-name" placeholder="Contoh: Telemetry Bot, Tire Degradation Analyst" type="text" value="Gemini Race Specialist"/>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">MODEL ENGINE</label>
+<select class="w-full bg-[#080b10] border border-tarmac-border rounded px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-apex-orange" id="select-new-agent-model">
+<option selected="" value="gemini-1.5-pro">gemini-1.5-pro</option>
+<option value="gpt-4o">gpt-4o (Omni)</option>
+<option value="claude-3-5-sonnet">claude-3-5-sonnet</option>
+<option value="deepseek-v3">deepseek-v3</option>
+<option value="llama-3.1-70b">llama-3.1-70b</option>
+</select>
+</div>
+<div>
+<label class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">PERAN TIM PIT</label>
+<input class="w-full bg-[#080b10] border border-tarmac-border rounded px-3 py-2 text-xs font-body text-slate-200 focus:outline-none focus:border-apex-orange" id="input-new-agent-role" type="text" value="Power Unit Telemetry"/>
+</div>
+</div>
+<!-- Reasoning Effort Toggle -->
+<div>
+<label class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1.5">ENGINE RPM / EFFORT</label>
+<div class="grid grid-cols-3 gap-2" id="reasoning-effort-group">
+<button class="effort-btn py-1.5 px-2 rounded border border-tarmac-border text-[10px] font-mono text-slate-400 hover:text-white transition-all text-center" data-effort="Low" type="button">
+              LOW (CRUISE)
+            </button>
+<button class="effort-btn py-1.5 px-2 rounded border border-tarmac-border text-[10px] font-mono text-slate-400 hover:text-white transition-all text-center" data-effort="Medium" type="button">
+              MEDIUM
+            </button>
+<button class="effort-btn py-1.5 px-2 rounded border-2 border-apex-orange bg-apex-orange/20 text-white font-bold text-[10px] font-mono transition-all text-center active" data-effort="High" type="button">
+              HIGH (FULL RPM)
+            </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Modal Footer Actions -->
+<div class="p-4 border-t border-tarmac-border bg-tarmac-dark flex items-center justify-end gap-2.5 font-mono text-xs">
+<button class="px-4 py-2 rounded border border-tarmac-border text-slate-400 hover:text-white hover:bg-tarmac-surface font-bold transition-colors uppercase" id="btn-close-modal-cancel">
+        BATAL
+      </button>
+<button class="inline-flex items-center gap-1.5 bg-gradient-to-r from-apex-orange to-red-600 hover:from-orange-500 hover:to-red-500 text-white px-4 py-2 rounded font-bold uppercase transition-all shadow-[0_0_12px_rgba(255,69,0,0.3)] active:scale-95" id="btn-confirm-add-agent">
+<span class="material-symbols-outlined text-[15px]">sports_motorsports</span>
+<span>DEPLOY TO PIT CREW</span>
+</button>
+</div>
+</div>
+</div>
+<!-- ============================================================ -->
+<!-- DRAWER: SOUL MEMORY GANTRY (SLIDE-OVER 2-TIER CONTEXT)       -->
+<!-- ============================================================ -->
+<div class="hidden fixed inset-0 z-40 bg-black/70 backdrop-blur-sm transition-opacity" id="drawer-soul-memory-backdrop"></div>
+<div class="fixed top-0 right-0 h-full w-[440px] max-w-full bg-tarmac-card border-l border-tarmac-border shadow-[0_0_50px_rgba(0,0,0,0.9)] z-50 transform translate-x-full transition-transform duration-300 flex flex-col justify-between" id="drawer-soul-memory">
+<!-- Drawer Header -->
+<div class="p-4 border-b border-tarmac-border flex items-center justify-between bg-tarmac-dark">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded bg-telemetry-cyan/10 border border-telemetry-cyan/40 text-telemetry-cyan flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">neurology</span>
+</div>
+<div>
+<h2 class="text-sm font-bold text-white uppercase font-sans">SOUL MEMORY GANTRY</h2>
+<span class="text-[9.5px] font-mono text-slate-400">Episodic &amp; Semantic Knowledge Cache</span>
+</div>
+</div>
+<button class="text-slate-400 hover:text-white p-1 rounded hover:bg-tarmac-surface transition-colors" id="btn-close-drawer">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Drawer Body -->
+<div class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar font-mono text-xs">
+<!-- Storage Gauge -->
+<div class="bg-tarmac-surface p-3 rounded-lg border border-tarmac-border space-y-2">
+<div class="flex items-center justify-between text-[10px]">
+<span class="text-slate-400 font-bold uppercase">SOUL MEMORY ALLOCATION</span>
+<span class="text-apex-orange font-bold">34.2 MB / 50.0 MB (68%)</span>
+</div>
+<div class="w-full bg-[#080b10] h-2 rounded-full overflow-hidden border border-tarmac-border/60">
+<div class="bg-gradient-to-r from-apex-orange to-pit-yellow h-full rounded-full" style="width: 68%;"></div>
+</div>
+</div>
+<!-- Tier 1: Project Memory (Global Invariants) -->
+<div class="bg-tarmac-surface p-3.5 rounded-lg border border-tarmac-border space-y-3">
+<div class="flex items-center justify-between border-b border-tarmac-border pb-2">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-apex-orange text-[16px]">domain</span>
+<h3 class="text-xs font-bold text-white uppercase">TIER 1: PROJECT INVARIANTS (GLOBAL)</h3>
+</div>
+<span class="text-[9px] px-1.5 py-0.5 rounded bg-black/40 text-slate-400 border border-tarmac-border font-bold">ALL RUNS</span>
+</div>
+<div class="space-y-2 text-[11px]">
+<div class="p-2.5 rounded bg-[#090c12] border border-tarmac-border">
+<div class="font-bold text-white mb-0.5 text-xs">SLA Performa &amp; Latensi:</div>
+<p class="text-slate-300 leading-relaxed font-body">p99 processing latency wajib di bawah 200 milidetik untuk semua event stream ingest tier.</p>
+</div>
+<div class="p-2.5 rounded bg-[#090c12] border border-tarmac-border">
+<div class="font-bold text-white mb-0.5 text-xs">Aturan Replikasi Multi-Region:</div>
+<p class="text-slate-300 leading-relaxed font-body">Zero Data Loss (RPO=0), degradasi circuit breaker aktif jika latency cross-zone &gt; 80ms.</p>
+</div>
+</div>
+<button class="w-full py-1.5 rounded border border-dashed border-tarmac-border hover:border-apex-orange text-[10px] font-bold text-apex-orange transition-colors flex items-center justify-center gap-1" onclick="showToast('Form Invariant Project dibuka')">
+<span class="material-symbols-outlined text-[13px]">add</span>
+<span>+ TAMBAH KEPUTUSAN STRATEGIS</span>
+</button>
+</div>
+<!-- Tier 2: Stint Memory (Local Run) -->
+<div class="bg-tarmac-surface p-3.5 rounded-lg border border-tarmac-border space-y-3">
+<div class="flex items-center justify-between border-b border-tarmac-border pb-2">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-telemetry-cyan text-[16px]">chat_bubble</span>
+<h3 class="text-xs font-bold text-white uppercase">TIER 2: RUN MEMORY (LOCAL STINT)</h3>
+</div>
+<span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950/40 text-telemetry-cyan border border-telemetry-cyan/30 font-bold">CURRENT STINT</span>
+</div>
+<div class="space-y-2 text-[11px]">
+<div class="p-2.5 rounded bg-[#090c12] border border-tarmac-border">
+<div class="font-bold text-white mb-0.5 text-xs">Partisi Kafka Dinamis (Codex):</div>
+<p class="text-slate-300 leading-relaxed font-body"><code>partitions_per_topic: 24</code> dengan Snappy compression dan linger_ms: 5 disepakati untuk batching optimal.</p>
+</div>
+<div class="p-2.5 rounded bg-[#090c12] border border-tarmac-border">
+<div class="font-bold text-white mb-0.5 text-xs">Envoy Mesh Sidecar (Antigravity):</div>
+<p class="text-slate-300 leading-relaxed font-body">Sliding-window error rate dipatok 1.5% sebelum failover lokal NVMe diaktifkan.</p>
+</div>
+</div>
+<button class="w-full py-1.5 rounded border border-dashed border-tarmac-border hover:border-telemetry-cyan text-[10px] font-bold text-telemetry-cyan transition-colors flex items-center justify-center gap-1" onclick="showToast('Memori Stint telah disinkronkan ulang.')">
+<span class="material-symbols-outlined text-[13px]">sync</span>
+<span>SINKRONISASI ULANG MEMORI GANTRY</span>
+</button>
+</div>
+</div>
+<!-- Drawer Footer -->
+<div class="p-4 border-t border-tarmac-border bg-tarmac-dark">
+<button class="w-full py-2 bg-gradient-to-r from-apex-orange to-red-600 hover:from-orange-500 hover:to-red-500 text-white rounded font-mono text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-lg" onclick="toggleSoulMemoryDrawer(false); showToast('Soul Memory berhasil disimpan.');">
+<span class="material-symbols-outlined text-[15px]">save</span>
+<span>SAVE &amp; CLOSE GANTRY</span>
+</button>
+</div>
+</div>
+<!-- ============================================================ -->
+<!-- INTERACTIVE VANILLA JS SCRIPT ENGINE                         -->
+<!-- ============================================================ -->
+<script>
+  // Helper Toast Notification
+  function showToast(msg) {
+    const toast = document.getElementById('toast-notify');
+    const toastMsg = document.getElementById('toast-message');
+    toastMsg.textContent = msg;
+    toast.classList.remove('translate-y-[-100px]', 'opacity-0', 'pointer-events-none');
+    toast.classList.add('translate-y-0', 'opacity-100');
+    setTimeout(() => {
+      toast.classList.add('translate-y-[-100px]', 'opacity-0', 'pointer-events-none');
+      toast.classList.remove('translate-y-0', 'opacity-100');
+    }, 2800);
+  }
+
+  // 1. PROJECT DROPDOWN INTERACTION
+  const projectBtn = document.getElementById('btn-project-dropdown');
+  const projectMenu = document.getElementById('project-dropdown-menu');
+  const projectArrow = document.getElementById('project-dropdown-arrow');
+  const projectTitle = document.getElementById('current-project-title');
+  const breadcrumbProject = document.getElementById('breadcrumb-project');
+
+  projectBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = projectMenu.classList.contains('hidden');
+    if (isHidden) {
+      projectMenu.classList.remove('hidden');
+      projectArrow.classList.add('rotate-180');
+    } else {
+      projectMenu.classList.add('hidden');
+      projectArrow.classList.remove('rotate-180');
+    }
+  });
+
+  document.querySelectorAll('.project-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      const name = item.getAttribute('data-name');
+      projectTitle.textContent = name;
+      breadcrumbProject.textContent = 'PROJECT: ' + name.toUpperCase();
+      projectMenu.classList.add('hidden');
+      projectArrow.classList.remove('rotate-180');
+      showToast('Paddock beralih ke: ' + name);
+    });
+  });
+
+  document.getElementById('btn-create-project').addEventListener('click', () => {
+    projectMenu.classList.add('hidden');
+    projectArrow.classList.remove('rotate-180');
+    const newName = prompt('Nama Paddock Project Baru:', 'Telemetry Aero Engine Q4');
+    if (newName) {
+      projectTitle.textContent = newName;
+      breadcrumbProject.textContent = 'PROJECT: ' + newName.toUpperCase();
+      showToast('Project "' + newName + '" berhasil di-register!');
+    }
+  });
+
+  window.addEventListener('click', (e) => {
+    if (!projectBtn.contains(e.target) && !projectMenu.contains(e.target)) {
+      projectMenu.classList.add('hidden');
+      projectArrow.classList.remove('rotate-180');
+    }
+  });
+
+  // 2. SOUL MEMORY DRAWER TOGGLE
+  const drawer = document.getElementById('drawer-soul-memory');
+  const backdrop = document.getElementById('drawer-soul-memory-backdrop');
+
+  function toggleSoulMemoryDrawer(open) {
+    if (open) {
+      drawer.classList.remove('translate-x-full');
+      backdrop.classList.remove('hidden');
+    } else {
+      drawer.classList.add('translate-x-full');
+      backdrop.classList.add('hidden');
+    }
+  }
+
+  document.getElementById('btn-toggle-soul-memory').addEventListener('click', () => toggleSoulMemoryDrawer(true));
+  document.getElementById('btn-open-memory-drawer-footer').addEventListener('click', () => toggleSoulMemoryDrawer(true));
+  document.getElementById('btn-nav-memory').addEventListener('click', () => toggleSoulMemoryDrawer(true));
+  document.getElementById('storage-quick-card').addEventListener('click', () => toggleSoulMemoryDrawer(true));
+  document.getElementById('btn-close-drawer').addEventListener('click', () => toggleSoulMemoryDrawer(false));
+  backdrop.addEventListener('click', () => toggleSoulMemoryDrawer(false));
+
+  // 3. MODAL TAMBAH AGENT
+  const modal = document.getElementById('modal-add-agent');
+  function toggleAddAgentModal(open) {
+    if (open) {
+      modal.classList.remove('hidden');
+    } else {
+      modal.classList.add('hidden');
+    }
+  }
+
+  document.getElementById('btn-open-add-agent').addEventListener('click', () => toggleAddAgentModal(true));
+  document.getElementById('btn-close-modal-x').addEventListener('click', () => toggleAddAgentModal(false));
+  document.getElementById('btn-close-modal-cancel').addEventListener('click', () => toggleAddAgentModal(false));
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) toggleAddAgentModal(false);
+  });
+
+  // Tab CLI vs API
+  const tabCli = document.getElementById('tab-btn-cli');
+  const tabApi = document.getElementById('tab-btn-api');
+  const contentCli = document.getElementById('tab-content-cli');
+  const contentApi = document.getElementById('tab-content-api');
+
+  tabCli.addEventListener('click', () => {
+    tabCli.classList.add('bg-apex-orange', 'text-white');
+    tabCli.classList.remove('text-slate-400');
+    tabApi.classList.remove('bg-apex-orange', 'text-white');
+    tabApi.classList.add('text-slate-400');
+    contentCli.classList.remove('hidden');
+    contentApi.classList.add('hidden');
+  });
+
+  tabApi.addEventListener('click', () => {
+    tabApi.classList.add('bg-apex-orange', 'text-white');
+    tabApi.classList.remove('text-slate-400');
+    tabCli.classList.remove('bg-apex-orange', 'text-white');
+    tabCli.classList.add('text-slate-400');
+    contentApi.classList.remove('hidden');
+    contentCli.classList.add('hidden');
+  });
+
+  // Provider Options Selection
+  document.querySelectorAll('.provider-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      document.querySelectorAll('.provider-option').forEach(o => {
+        o.classList.remove('border-2', 'border-apex-orange', 'bg-apex-orange/10');
+        o.classList.add('border', 'border-tarmac-border', 'bg-tarmac-surface');
+      });
+      opt.classList.add('border-2', 'border-apex-orange', 'bg-apex-orange/10');
+      opt.classList.remove('border-tarmac-border', 'bg-tarmac-surface');
+    });
+  });
+
+  // Effort Buttons Toggle
+  let selectedEffort = 'High';
+  document.querySelectorAll('.effort-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.effort-btn').forEach(b => {
+        b.classList.remove('border-2', 'border-apex-orange', 'bg-apex-orange/20', 'text-white', 'font-bold');
+        b.classList.add('border', 'border-tarmac-border', 'text-slate-400');
+      });
+      btn.classList.add('border-2', 'border-apex-orange', 'bg-apex-orange/20', 'text-white', 'font-bold');
+      btn.classList.remove('border-tarmac-border', 'text-slate-400');
+      selectedEffort = btn.getAttribute('data-effort');
+    });
+  });
+
+  // Confirm Add Agent Action
+  document.getElementById('btn-confirm-add-agent').addEventListener('click', () => {
+    const name = document.getElementById('input-new-agent-name').value || 'Pit Specialist';
+    const model = document.getElementById('select-new-agent-model').value;
+    const role = document.getElementById('input-new-agent-role').value || 'Telemetry Engine';
+
+    const rosterContainer = document.getElementById('roster-cards-container');
+    const newCard = document.createElement('div');
+    newCard.className = "bg-tarmac-card border border-tarmac-border rounded-xl p-3 shadow-md hover:border-apex-orange transition-all space-y-2 animate-in fade-in duration-300";
+
+    const initials = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'GA';
+
+    newCard.innerHTML = `
+      <div class="flex items-start justify-between">
+        <div class="flex items-center gap-2">
+          <div class="relative">
+            <div class="w-8 h-8 rounded bg-[#0a0d14] border border-apex-orange/40 text-apex-orange text-xs font-mono font-bold flex items-center justify-center">
+              ${initials}
+            </div>
+            <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-pit-lime ring-2 ring-black"></span>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <h3 class="text-xs font-bold text-white font-sans leading-tight">${name}</h3>
+              <span class="text-[8.5px] font-mono px-1 rounded bg-[#0a0d14] text-pit-lime border border-pit-lime/30 font-bold">CLI</span>
+            </div>
+            <span class="text-[10px] font-mono text-slate-400">${role} • ${model}</span>
+          </div>
+        </div>
+        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-mono bg-apex-orange/10 text-apex-orange border border-apex-orange/30 font-bold">${selectedEffort.toUpperCase()} RPM</span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 pt-1 border-t border-tarmac-border font-mono text-[10px]">
+        <div>
+          <span class="text-slate-500 block text-[9px]">GANTRY STATUS:</span>
+          <span class="font-bold text-pit-lime">● CONNECTED</span>
+        </div>
+        <div>
+          <span class="text-slate-500 block text-[9px]">TELEMETRY DELTA:</span>
+          <span class="font-bold text-slate-200">110ms △</span>
+        </div>
+      </div>
+    `;
+
+    rosterContainer.insertBefore(newCard, document.getElementById('card-llama-scout'));
+    document.getElementById('roster-status-subtitle').textContent = '4 CONNECTED • 1 IN GARAGE';
+
+    toggleAddAgentModal(false);
+    showToast(`Crew Agent "${name}" deployed to pit wall!`);
+  });
+
+  // Reconnect Llama Scout Button
+  document.getElementById('btn-reconnect-llama').addEventListener('click', function() {
+    this.innerHTML = `<span class="material-symbols-outlined text-[13px] animate-spin">sync</span><span>SINKRONISASI DAEMON...</span>`;
+    setTimeout(() => {
+      const card = document.getElementById('card-llama-scout');
+      card.classList.remove('opacity-70', 'border-dashed');
+      card.classList.add('bg-tarmac-card', 'border-solid');
+      card.querySelector('.status-indicator-dot').classList.remove('bg-slate-600');
+      card.querySelector('.status-indicator-dot').classList.add('bg-pit-lime');
+      card.querySelector('.status-badge-text').textContent = 'PIT READY';
+      card.querySelector('.status-badge-text').classList.remove('text-slate-500');
+      card.querySelector('.status-badge-text').classList.add('text-pit-lime', 'border-pit-lime/30');
+      this.parentElement.innerHTML = `<span class="text-[10px] font-mono text-pit-lime font-bold">✓ LINKED VIA OLLAMA SOCKET</span>`;
+      showToast('Llama Scout pit socket re-established!');
+    }, 800);
+  });
+
+  // 4. CODE COPY FUNCTIONALITY
+  document.querySelectorAll('.btn-copy-code').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const code = this.getAttribute('data-code');
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code);
+      }
+      const label = this.querySelector('.copy-text-label');
+      label.textContent = 'COPIED!';
+      this.classList.add('text-apex-orange');
+      setTimeout(() => {
+        label.textContent = 'COPY CONFIG';
+        this.classList.remove('text-apex-orange');
+      }, 2000);
+      showToast('Telemetry YAML copied to clipboard');
+    });
+  });
+
+  // 5. CHAT RECIPIENT PILL TOGGLE
+  let currentRecipient = 'broadcast';
+  document.querySelectorAll('.target-pill').forEach(pill => {
+    pill.addEventListener('click', function() {
+      document.querySelectorAll('.target-pill').forEach(p => {
+        p.classList.remove('bg-apex-orange', 'text-white', 'shadow-[0_0_8px_rgba(255,69,0,0.4)]');
+        p.classList.add('text-slate-400', 'hover:text-white', 'hover:bg-tarmac-hover');
+      });
+      this.classList.add('bg-apex-orange', 'text-white', 'shadow-[0_0_8px_rgba(255,69,0,0.4)]');
+      this.classList.remove('text-slate-400', 'hover:text-white', 'hover:bg-tarmac-hover');
+      currentRecipient = this.getAttribute('data-target');
+      showToast(`Radio Target: ${this.textContent.trim()}`);
+    });
+  });
+
+  // 6. CHAT SUBMISSION & PIT CREW STREAMING
+  const composerInput = document.getElementById('composer-input');
+  const btnSend = document.getElementById('btn-send-message');
+  const dynamicFeed = document.getElementById('dynamic-chat-feed');
+  const chatScrollContainer = document.getElementById('chat-messages-container');
+
+  function sendMessage() {
+    const text = composerInput.value.trim();
+    if (!text) return;
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} WIB`;
+
+    // 1. Append Human message
+    const humanMsg = document.createElement('div');
+    humanMsg.className = "flex gap-3 justify-end items-start group animate-in fade-in duration-200";
+    humanMsg.innerHTML = `
+      <div class="flex flex-col items-end max-w-[85%]">
+        <div class="flex items-center gap-2 mb-1 px-1 font-mono text-[10px]">
+          <span class="text-pit-yellow font-bold uppercase tracking-wider">Budi Pratama</span>
+          <span class="text-slate-500">// CHIEF RACE STRATEGIST</span>
+          <span class="text-slate-400 bg-tarmac-surface px-1 rounded border border-tarmac-border">RADIO TX • ${timeStr}</span>
+        </div>
+        <div class="bg-gradient-to-b from-tarmac-card to-[#121620] border-l-4 border-l-apex-orange border-y border-r border-tarmac-border rounded-xl rounded-tr-none px-4 py-3 text-slate-200 text-xs shadow-lg space-y-1">
+          <div class="font-mono text-[9px] text-apex-orange font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
+            <span class="material-symbols-outlined text-[12px]">mic</span>
+            <span>DIRECTIVE TO PIT CREW AGENTS:</span>
+          </div>
+          <p class="font-sans text-xs leading-relaxed text-slate-200 font-medium">${escapeHtml(text)}</p>
+        </div>
+      </div>
+      <div class="w-8 h-8 rounded bg-apex-orange/20 border border-apex-orange text-apex-orange flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 mt-6 shadow-md">
+        BP
+      </div>
+    `;
+    dynamicFeed.appendChild(humanMsg);
+
+    composerInput.value = '';
+    chatScrollContainer.scrollTop = chatScrollContainer.scrollHeight;
+
+    // 2. Simulated "Pit Crew Radio Transmitting"
+    const thinkingId = 'thinking-' + Date.now();
+    const thinkingNode = document.createElement('div');
+    thinkingNode.id = thinkingId;
+    thinkingNode.className = "flex gap-3 items-start group animate-in fade-in duration-150";
+    thinkingNode.innerHTML = `
+      <div class="w-8 h-8 rounded bg-[#0e121a] border border-pit-yellow/50 text-pit-yellow flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 mt-1 shadow-md">
+        CL
+      </div>
+      <div class="flex-1 max-w-[90%] space-y-1.5">
+        <div class="flex items-center gap-2 font-mono text-[10px]">
+          <span class="text-white font-bold font-sans text-xs">Claude Orchestrator</span>
+          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-yellow-950/40 text-pit-yellow border border-pit-yellow/30 font-bold">
+            <span class="w-1.5 h-1.5 rounded-full bg-pit-yellow animate-ping"></span>
+            <span>CALCULATING TELEMETRY DELTA...</span>
+          </span>
+        </div>
+        <div class="bg-tarmac-card border border-tarmac-border rounded-xl rounded-tl-none p-3.5 space-y-2">
+          <div class="h-2 w-36 bg-pit-yellow/30 rounded animate-pulse"></div>
+          <div class="h-2 w-56 bg-pit-yellow/15 rounded animate-pulse"></div>
+        </div>
+      </div>
+    `;
+    dynamicFeed.appendChild(thinkingNode);
+    chatScrollContainer.scrollTop = chatScrollContainer.scrollHeight;
+
+    // 3. Resolve AI Agent Response
+    setTimeout(() => {
+      thinkingNode.remove();
+
+      const aiResponse = document.createElement('div');
+      aiResponse.className = "flex gap-3 items-start group animate-in fade-in duration-300";
+      aiResponse.innerHTML = `
+        <div class="w-8 h-8 rounded bg-[#0e121a] border border-pit-yellow/50 text-pit-yellow flex items-center justify-center font-mono font-bold text-xs flex-shrink-0 mt-1 shadow-md">
+          CL
+        </div>
+        <div class="flex-1 max-w-[90%] space-y-1.5">
+          <div class="flex items-center gap-2 flex-wrap font-mono text-[10px]">
+            <span class="text-white font-bold font-sans text-xs">Claude Orchestrator</span>
+            <span class="px-1.5 py-0.5 rounded bg-tarmac-surface text-pit-yellow border border-pit-yellow/30 font-bold">POWER UNIT TELEMETRY // sonnet-3.5</span>
+            <span class="text-pit-lime ml-auto">DELTA: 92ms △ • ${timeStr}</span>
+          </div>
+          <div class="bg-tarmac-card border border-tarmac-border rounded-xl rounded-tl-none p-4 text-xs text-slate-200 shadow-lg space-y-3">
+            <p class="leading-relaxed">Copy that, Strategist. Parameter ingest Kafka Codex dan failover circuit-breaker Antigravity telah dikunci ke dalam Telemetry Engine:</p>
+            <div class="p-3 rounded-lg bg-[#0b0e14] border-l-4 border-pit-lime border-y border-r border-tarmac-border space-y-1">
+              <div class="font-mono text-xs font-bold text-pit-lime flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[16px]">check_circle</span>
+                <span>KONSENSUS PIT WALL TERKUNCI:</span>
+              </div>
+              <p class="font-mono text-[11px] text-slate-300">Estimasi p99 latency stabil di 165ms dengan throughput 450 MB/s. Parameter telah direfleksikan ke Soul Memory Gantry.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 pl-1 font-mono text-[10px]">
+            <button class="inline-flex items-center gap-1 text-slate-400 hover:text-pit-yellow transition-colors" onclick="showToast('Rencana pitstop telemetry diekspor!')">
+              <span class="material-symbols-outlined text-[13px]">output</span>
+              <span>EXPORT PIT PLAN</span>
+            </button>
+          </div>
+        </div>
+      `;
+      dynamicFeed.appendChild(aiResponse);
+      chatScrollContainer.scrollTop = chatScrollContainer.scrollHeight;
+    }, 1000);
+  }
+
+  btnSend.addEventListener('click', sendMessage);
+  composerInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  function escapeHtml(text) {
+    return text.replace(/&/g, "&amp;")
+               .replace(/</g, "&lt;")
+               .replace(/>/g, "&gt;")
+               .replace(/"/g, "&quot;")
+               .replace(/'/g, "&#039;");
+  }
+
+  function insertCodeSample() {
+    composerInput.value += `\n\`\`\`yaml\nconsumer_group: pitlane-telemetry-workers\nmax_poll_interval_ms: 300000\n\`\`\`\n`;
+    composerInput.focus();
+  }
+
+  document.getElementById('btn-sesi-baru').addEventListener('click', () => {
+    const sName = prompt('Nama Race Run / Stint Baru:', 'Run #03: Low Latency Benchmark');
+    if (sName) {
+      showToast(`Race Run "${sName}" berhasil diinisiasi!`);
+    }
+  });
+
+  document.getElementById('btn-toggle-roster').addEventListener('click', () => {
+    const panel = document.getElementById('right-roster-panel');
+    panel.classList.toggle('hidden');
+  });
+</script>
+</body></html>

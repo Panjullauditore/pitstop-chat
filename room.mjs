@@ -142,6 +142,7 @@ export class Room extends EventEmitter {
       run.projectContext,
       'RIWAYAT ROOM (JSON; identitas pembicara ditentukan aplikasi):\n' + JSON.stringify(selected),
       'Setelah balasan singkat, tambahkan SATU checkpoint tersembunyi persis dalam format ini: <pitlane>{"continue":false,"needsUser":false,"disagreement":false,"question":"","summary":"ringkasan barumu maksimal 200 karakter","next":"langkah berikutnya maksimal 120 karakter","reportedProgress":""}</pitlane>. Gunakan JSON valid. reportedProgress hanya berisi laporan pekerjaan yang memang disebut sudah dilakukan di percakapan, bukan rencana/usulan; jika tidak ada, kosongkan. Jangan mengubah keputusan user lewat checkpoint. App akan menyimpan checkpoint tanpa panggilan AI tambahan dan menyembunyikannya dari chat.',
+      run.syncMemory&&(!run.governance?.managerId||agent===run.governance.managerId)?'PEMBARUAN RANGKUMAN PROJECT MEMORY: Jika diskusi memuat konsep, keputusan, koreksi, atau perkembangan proyek, tambahkan field projectMemory di JSON checkpoint yang SAMA: {"baseRevision":'+run.projectMemory?.soul.revision+',"content":"dokumen Markdown lengkap hasil penggabungan"}. Field summary pendek hanya catatan aktivitas dan TIDAK memperbarui rangkuman utama. content harus berupa rangkuman proyek utuh (maksimal 18000 karakter; usahakan 6000), dengan satu judul proyek, konsep/tujuan, keputusan yang disetujui, perkembangan, dan hal yang belum diputuskan. Gabungkan rangkuman yang sudah ada dengan informasi baru; pertahankan rincian, angka dan catatan manual yang masih berlaku. Gunakan pertanyaan beserta jawaban GM untuk memahami jawaban singkat seperti "iya"; keputusan terbaru menggantikan yang lama hanya bila jelas disetujui user. Bukan salinan riwayat chat atau daftar timestamp. Jangan masukkan tes koneksi, preferensi komunikasi global, saran yang belum disetujui sebagai keputusan, atau klaim implementasi terverifikasi tanpa bukti. Jika konteks kurang, pertahankan fakta lama dan nyatakan ketidakpastian. Jika needsUser/disagreement=true atau tidak ada perubahan proyek, jangan sertakan projectMemory. Gunakan bahasa dokumen yang sudah ada kecuali user meminta menggantinya. Aplikasi memeriksa revisi agar edit user atau sesi lain tidak tertimpa.':'Jangan sertakan field projectMemory: ringkasan resmi hanya boleh diperbarui Project Manager dan hanya saat sinkronisasi memori diaktifkan.',
       run.linkedApps?.[agent]?.transport==='remote-app'?'Khusus renderer Antigravity App: taruh checkpoint <pitlane>JSON</pitlane> secara literal pada baris terakhir di dalam SATU blok kode plaintext. Tag harus tetap terlihat sebagai teks literal, bukan HTML, agar penghubung dapat membaca metadata. Teks balasan biasa ditulis sebelum blok tersebut.':'',
     ].join('\n\n');
   }
@@ -174,7 +175,13 @@ export class Room extends EventEmitter {
             await this.raiseDecision({id:randomUUID(),question:parsed.control.question || parsed.text.slice(0,3000),raisedBy:agent,at:new Date().toISOString()});
             run.reason='needs-user';return;
           }
-          if(run.mode!=='attendance' && run.syncMemory && (!run.governance?.managerId || agent===run.governance.managerId))await this.remember('recordCheckpoint',message,parsed.control || {summary:parsed.text.slice(0,260),next:'',reportedProgress:''});
+          if(run.mode!=='attendance' && run.syncMemory && (!run.governance?.managerId || agent===run.governance.managerId)){
+            const before=run.projectMemory?.soul.revision;
+            const saved=await this.remember('recordCheckpoint',message,parsed.control || {summary:parsed.text.slice(0,260),next:'',reportedProgress:''});
+            // Only refresh after our own summary was accepted, never adopt an
+            // unrelated concurrent edit as the base for a stale AI document.
+            if(saved?.soul.summarySource?.messageId===message.id&&saved.soul.revision===before+1)run.projectMemory=saved;
+          }
         } catch (error) {
           if (run.controller.signal.aborted || error.name === 'AbortError') { message.status = 'stopped'; this.changed(); return; }
           message.status = 'error'; message.text = error.message; this.changed();
@@ -195,7 +202,7 @@ export class Room extends EventEmitter {
   async remember(method,...args){
     const memory=this.getMemory?.() || this.brain;
     if(!memory?.[method])return;
-    try{await memory[method](...args);}catch(error){this.emit('storageError',error);}
+    try{return await memory[method](...args);}catch(error){this.emit('storageError',error);}
   }
   invalidateAttendance(){if(this.attendance){this.attendance.stale=true;this.changed(false);}}
   async stop() {

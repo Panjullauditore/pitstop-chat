@@ -54,7 +54,7 @@ import {
 import {useI18n} from "@/lib/i18n";
 import { toast } from "sonner";
 
-export default function PitlanePage() {
+export default function PitstopPage() {
   const {t,setLanguage}=useI18n();
   const [searchTarget,setSearchTarget] = useState<{messageId:string;query:string;nonce:number}|null>(null);
   const [token, setToken] = useState("");
@@ -259,6 +259,9 @@ export default function PitlanePage() {
         currentUserName={currentUserName}
         onOpenProfile={() => setProfileDialogOpen(true)}
         onOpenSettings={() => setProfileDialogOpen(true)}
+        online={online}
+        projectMemory={roomState?.projectMemory}
+        onOpenProjectMemory={()=>{setMemoryTab("project");setSoulDialogOpen(true);}}
         currentProjectName={projectName}
         soulContent={roomState?.brain?.soul?.content || ""}
         soulRevision={roomState?.brain?.soul?.revision || 0}
@@ -267,16 +270,16 @@ export default function PitlanePage() {
       {/* 2. Area Utama (Center Chat Workspace) */}
       <main className="flex-1 flex flex-col min-w-0 h-dvh min-h-0 overflow-hidden bg-background relative isolate">
         {/* TopNavBar Collaboration Header (Stitch Architecture) */}
-        <header className="h-16 px-4 sm:px-6 border-b border-border/60 bg-background flex items-center justify-between gap-3 shrink-0">
+        <header className="h-[76px] px-4 sm:px-6 border-b border-border bg-rail flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             {!sidebarOpen&&<button type="button" onClick={()=>setSidebarOpen(true)} className="lg:hidden h-9 w-9 rounded-lg hover:bg-secondary flex items-center justify-center shrink-0" aria-label={t("Buka navigasi")}><Menu className="w-4 h-4"/></button>}
-            <h1 className="text-sm font-semibold truncate" title={activeSession?.title}>{activeSession?.title || 'New Chat'}</h1>
-            {activeSession?.projectId&&<span className="hidden lg:block text-sm text-muted-foreground truncate max-w-48" title={projectName}>/ {projectName}</span>}
+            <div className="min-w-0"><div className="mb-1 flex items-center gap-2 font-mono text-[9px] uppercase tracking-wide"><span className="text-primary shrink-0">Pitstop /</span><span className="text-muted-foreground truncate" title={projectName}>{activeSession?.projectId?projectName:'Workspace'}</span></div><h1 className="text-base sm:text-lg font-display font-bold truncate" title={activeSession?.title}>{activeSession?.title||'New Chat'}</h1></div>
+            <span className={`hidden min-[1500px]:inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono text-[9px] uppercase ${online?'border-brand-lime/30 bg-brand-lime/5 text-brand-lime':'border-border text-muted-foreground'}`}><span className={`h-1.5 w-1.5 rounded-full ${online?'bg-brand-lime':'bg-muted-foreground'}`}/>{online?'Live':t("Menyambungkan ke Pitstop…")}</span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <span className="lg:hidden"><MessageSearch sessions={sessions} onSelect={handleSearchSelect} compact/></span>
-            <Button variant="ghost" size="sm" onClick={()=>{setMemoryTab('project');setSoulDialogOpen(true);}} className="h-9 gap-2 px-2.5" aria-label={t("Buka Project Memory")} title="Project Memory"><Brain className="w-4 h-4"/><span className="hidden sm:inline text-xs">Project Memory</span></Button>
-            <Button variant="ghost" size="sm" onClick={()=>setTeamPanelOpen(value=>!value)} className="h-9 gap-2 px-2.5" aria-label={teamPanelOpen?t("Tutup tim"):t("Buka tim")} aria-pressed={teamPanelOpen} title={t("Panel tim")}><Users className="w-4 h-4"/><span className="hidden sm:inline text-xs">{t("Tim")}</span></Button>
+            <Button variant="ghost" size="sm" onClick={()=>{setMemoryTab('project');setSoulDialogOpen(true);}} className="h-10 gap-2 px-2.5 border border-border bg-secondary" aria-label={t("Buka Project Memory")} title="Project Memory"><Brain className="w-4 h-4"/><span className="hidden min-[1400px]:inline text-[10px] font-mono uppercase">Project Memory</span></Button>
+            <Button variant="ghost" size="sm" onClick={()=>setTeamPanelOpen(value=>!value)} className="h-10 gap-2 px-2.5 border border-border bg-secondary" aria-label={teamPanelOpen?t("Tutup tim"):t("Buka tim")} aria-pressed={teamPanelOpen} title={t("Panel tim")}><Users className="w-4 h-4"/><span className="hidden sm:inline text-xs">{t("Tim")}</span></Button>
             <Button variant="ghost" size="sm" disabled={!token} onClick={()=>{window.location.href=`/api/export?token=${encodeURIComponent(token)}`;}} className="h-9 w-9 p-0" aria-label={t("Unduh percakapan")} title={t("Unduh percakapan")}><Download className="w-4 h-4"/></Button>
           </div>
         </header>

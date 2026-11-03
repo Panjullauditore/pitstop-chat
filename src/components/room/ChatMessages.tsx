@@ -114,7 +114,7 @@ export function ChatMessages({
         return (
           <div
             key={idx}
-            className="my-3 rounded-lg bg-[#0c0f15] border border-border overflow-hidden"
+            className="my-3 rounded-lg bg-rail border border-border overflow-hidden"
           >
             <div className="flex items-center justify-between px-3 py-1.5 bg-secondary/60 border-b border-border text-xs text-muted-foreground">
               <span>{lang || "snippet"}</span>
@@ -174,7 +174,7 @@ export function ChatMessages({
       case "codex":
         return {
           code: "CX",
-          bg: "bg-[#0b0f17] text-foreground border-border",
+          bg: "bg-rail text-foreground border-border",
           tag: "Codex",
         };
       case "antigravity":
@@ -228,11 +228,11 @@ export function ChatMessages({
                 <div key={message.id} data-message-id={message.id} tabIndex={-1} ref={node=>{if(node)messageRefs.current.set(message.id,node);else messageRefs.current.delete(message.id);}} className={`flex gap-3 justify-end items-start group rounded-xl scroll-mt-6 ${searchTarget?.messageId===message.id?'ring-2 ring-primary ring-offset-4 ring-offset-background':''}`}>
                   <div className="flex min-w-0 flex-col items-end max-w-[calc(100%-44px)] sm:max-w-[min(80%,760px)]">
                     <div className="flex flex-wrap justify-end items-center gap-x-2 gap-y-1 mb-2 px-1">
-                      <span className="text-xs font-semibold text-foreground">{currentUserName}</span>
-                      <span className="text-xs text-muted-foreground">{managerId?'General Manager':t("Pengguna")}</span>
-                      <span className="text-xs text-muted-foreground">{time}</span>
+                      <span className="text-xs font-mono font-semibold text-brand-yellow uppercase">{currentUserName}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground uppercase">{managerId?'General Manager':t("Pengguna")}</span>
+                      <span className="text-[11px] font-mono text-muted-foreground">{time}</span>
                     </div>
-                    <div className="w-fit max-w-full [overflow-wrap:anywhere] bg-secondary/70 border border-border rounded-2xl px-4 py-3 text-sm text-foreground">
+                    <div className="w-fit max-w-full [overflow-wrap:anywhere] bg-card border border-primary/40 rounded-xl rounded-tr-sm px-4 py-3 text-sm text-foreground">
                       {message.attachments?.length ? <div className={message.text?'mb-3':''}><ChatAttachments attachments={message.attachments} token={token}/></div> : null}
                       {message.text&&<p className="whitespace-pre-wrap leading-relaxed">{highlight(message.text)}</p>}
                     </div>
@@ -259,7 +259,7 @@ export function ChatMessages({
                 <div className="flex-1 min-w-0 space-y-3">
                   {/* Agent Header Meta */}
                   <div className="flex items-center gap-2 flex-wrap text-xs">
-                    <span className="text-sm font-semibold text-foreground">
+                    <span className="text-sm font-display font-bold text-foreground">
                       {getRoleDisplayName(message.role)}
                     </span>
                     {message.nativeChat&&<span className="text-xs text-brand-cyan" title={message.nativeChat.title}>{t("Tersimpan di chat aplikasi")}</span>}
@@ -267,13 +267,13 @@ export function ChatMessages({
                     {message.role===managerId&&<span className="text-xs text-brand-cyan">Project Manager</span>}
 
                     {/* Model Pill */}
-                    <span className="text-xs text-muted-foreground empty:hidden rounded-md bg-secondary px-2 py-1">
+                    <span className="text-[10px] font-mono text-muted-foreground empty:hidden rounded border border-border bg-secondary px-2 py-1">
                       {message.modelName || message.model || ""}
                     </span>
 
                     {/* Effort Pill */}
                     {message.effort && (
-                      <span className="text-xs text-muted-foreground rounded-md bg-secondary/60 px-2 py-1">
+                      <span className="text-[10px] font-mono text-primary uppercase rounded border border-primary/30 bg-primary/10 px-2 py-1">
                         <span>{message.effort}</span>
                       </span>
                     )}
@@ -285,7 +285,7 @@ export function ChatMessages({
 
                   {/* Message Card */}
                   <div
-                    className={`w-fit max-w-full sm:max-w-[min(100%,72ch)] min-w-0 [overflow-wrap:anywhere] rounded-xl border px-4 py-3 text-sm leading-7 text-foreground space-y-3 ${
+                    className={`w-fit max-w-full sm:max-w-[min(100%,72ch)] min-w-0 [overflow-wrap:anywhere] rounded-xl rounded-tl-sm border px-4 py-3 text-sm leading-7 text-foreground space-y-3 ${
                       message.status === "error"
                         ? "border-destructive/40 bg-destructive/10"
                         : message.status === "streaming"
@@ -311,7 +311,7 @@ export function ChatMessages({
 
                   {/* Action Bar */}
                   {message.status === "done" && (
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-1 text-xs">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-1 font-mono uppercase text-[10px]">
                       <button
                         type="button"
                         disabled={isPinned}

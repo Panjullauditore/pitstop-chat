@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { Brain } from './brain.mjs';
 import { Room } from './room.mjs';
 import {soulWithLanguage} from './src/lib/language.mjs';
+import {COMMUNICATION_SOUL} from './soul-presets.mjs';
 
 function legacyCore(content) {
   const lines=stripAutomaticMemory(content).split('\n');let skipping=false;
@@ -21,7 +22,8 @@ export class SessionStore extends EventEmitter {
   async load() {
     await mkdir(this.directory, { recursive: true });
     const communicationFresh=!existsSync(join(this.directory,'communication','brain.json'));
-    this.communication=new Brain(join(this.directory,'communication'), '# Soul Memory — Communication preferences\n\n- Be casual, clear, and direct. Match the user’s writing style.\n- Prefer concise answers of 2–4 sentences; explain in more detail when requested.\n- Avoid repetitive greetings, praise, and conclusions.\n- Ask the user when a decision is needed; never invent progress.\n- Distinguish user decisions, AI suggestions, and verified results.', {communicationPolicy:false,automaticMemory:false,documentPath:join(this.directory,'communication','SOUL.md'),languageDocument:true});
+    const hasLegacyData=existsSync(join(this.directory,'sessions.json'))||existsSync(join(this.directory,'brain.json'));
+    this.communication=new Brain(join(this.directory,'communication'), COMMUNICATION_SOUL.en, {communicationPolicy:false,automaticMemory:false,documentPath:join(this.directory,'communication','SOUL.md'),languageDocument:true});
     await this.communication.load();
     this.communication.on('change',()=>{if(this.room)this.emit('change',this.snapshot());});
     try {
@@ -37,7 +39,7 @@ export class SessionStore extends EventEmitter {
     }
     for (const entry of this.entries) await this.open(entry.id);
     for (const entry of this.entries) await this.ensureMemory(entry.id);
-    if(communicationFresh){
+    if(communicationFresh&&hasLegacyData){
       const policies=[...new Set([...this.rooms.values()].flatMap(room=>{
         const source=stripAutomaticMemory(room.brain.snapshot().soul.content),start=source.indexOf(POLICY_MARKER);
         if(start<0)return [];
@@ -108,8 +110,10 @@ export class SessionStore extends EventEmitter {
     const legacy=members.map(e=>this.rooms.get(e.id)?.brain.snapshot()).filter(Boolean);
     const cores=[...new Set(legacy.map(brain=>legacyCore(brain.soul.content)).filter(Boolean))];
     const directory=join(this.directory,'memories',key),fresh=!existsSync(join(directory,'brain.json'));
-    const seed=('# '+(project?.name || entry?.title || 'Project Memory')+'\n\n'+(cores.join('\n\n---\n\n') || '## Konsep\nBelum ada konsep proyek yang dicatat.')).slice(0,17500);
-    const memory=new Brain(directory,seed,{communicationPolicy:false});await memory.load();
+    const title='# '+(project?.name || entry?.title || 'Project Memory');
+    const body=cores.join('\n\n---\n\n') || '## Konsep\nBelum ada konsep proyek yang dicatat.';
+    const seed=(body.startsWith(title+'\n')?body:title+'\n\n'+body).slice(0,17500);
+    const memory=new Brain(directory,seed,{communicationPolicy:false,projectMemory:true});await memory.load();
     if(fresh && legacy.length){
       const unique=rows=>[...new Map(rows.map(row=>[row.id,row])).values()];
       await memory.commit({...memory.value,auto:{userNotes:unique(legacy.flatMap(b=>b.auto?.userNotes || [])).slice(-12),updates:unique(legacy.flatMap(b=>b.auto?.updates || [])).slice(-12)},soul:{...memory.value.soul,pinnedIds:[...new Set(legacy.flatMap(b=>b.soul.pinnedIds || []))]}});

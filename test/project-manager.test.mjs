@@ -79,3 +79,42 @@ test('a DeepSeek mention routes only to DeepSeek, even with a Codex PM and a bro
   calls.length=0;await store.room.send({text:'@DeepSeek Web review this',mode:'codex'});await store.room.run.done;assert.deepEqual(calls,['deepseek']);
   await assert.rejects(store.room.send({text:'Ask all agents',mode:'discussion'}),/Project Manager belum tersambung/);
 });
+
+test('only PM can consolidate the main project document; siblings and replacement accounts read it after restart',async t=>{
+  const calls=[];
+  const {store,options}=await setup(t,async(agent,prompt)=>{
+    calls.push({agent,prompt});
+    const revision=store.memoryFor(store.activeId).snapshot().soul.revision;
+    return reply('Memory checkpoint',{projectMemory:{baseRevision:revision,content:agent==='codex'?'# Shared concept\n\n## Decisions\nThree bays approved; no Studio implementation verified.':'WRONG TEAM OVERWRITE'}});
+  });
+  await store.createProject({name:'Shared concept',managerId:'codex',agentIds:['antigravity']});
+  assert.equal(store.memoryFor(store.activeId).value.soul.content.split('# Shared concept').length-1,1);
+  const projectId=store.projects[0].id,soul=store.communication.snapshot().soul.content;
+  await store.room.send({text:'Approve three bays.',mode:'discussion'});await store.room.run.done;
+  const memory=store.memoryFor(store.activeId).snapshot();
+  assert.match(memory.soul.content,/Three bays approved/);assert.doesNotMatch(memory.soul.content,/WRONG TEAM/);
+  assert.match(calls.at(-1).prompt,/PEMBARUAN RANGKUMAN PROJECT MEMORY/);
+  assert.equal(memory.soul.summarySource.agent,'codex');
+  await store.create({title:'Other session',projectId});
+  assert.match(store.memorySnapshot(store.activeId).content,/Three bays approved/);
+  const restored=new SessionStore(options);await restored.load();
+  assert.match(restored.memorySnapshot(restored.activeId).content,/Three bays approved/);
+  assert.equal(restored.communication.snapshot().soul.content,soul);
+  const before=restored.memoryFor(restored.activeId).value.soul.content;
+  await restored.room.send({text:'Do not save this draft',mode:'codex',syncMemory:false});await restored.room.run?.done;
+  assert.equal(restored.memoryFor(restored.activeId).value.soul.content,before);
+  for(const room of restored.rooms.values())await room.save();await restored.queue;
+});
+
+test('a stale PM document cannot overwrite a concurrent manual concept edit',async t=>{
+  let started,release;const entered=new Promise(resolve=>started=resolve),gate=new Promise(resolve=>release=resolve);
+  const {store}=await setup(t,async()=>{
+    const revision=store.memoryFor(store.activeId).snapshot().soul.revision;started();await gate;
+    return reply('Stale summary',{projectMemory:{baseRevision:revision,content:'# OLD AI CONTENT'}});
+  });
+  await store.createProject({name:'Concurrent concept',managerId:'codex',agentIds:[]});
+  await store.room.send({text:'Update concept',mode:'codex'});const run=store.room.run;await entered;
+  const memory=store.memoryFor(store.activeId);await memory.saveSoul('# Manual concept\nKeep this important decision.',memory.snapshot().soul.revision);
+  release();await run.done;
+  assert.match(memory.snapshot().soul.content,/# Manual concept/);assert.doesNotMatch(memory.snapshot().soul.content,/OLD AI CONTENT/);
+});

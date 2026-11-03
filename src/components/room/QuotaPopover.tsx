@@ -101,7 +101,7 @@ export function QuotaPopover({
           <div className="py-4 text-center">
             <p className="text-sm font-semibold text-muted-foreground">Tidak tersedia</p>
             <p className="text-xs text-muted-foreground/80 mt-1.5 leading-relaxed">
-              CLI Claude belum menyediakan persentase sisa kuota yang dapat dibaca Pitlane.
+              CLI Claude belum menyediakan persentase sisa kuota yang dapat dibaca Pitstop.
             </p>
           </div>
         ) : groups.length === 0 ? (

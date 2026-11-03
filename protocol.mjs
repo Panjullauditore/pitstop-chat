@@ -30,6 +30,10 @@ export function parseReply(text) {
       control={continue:value.continue,needsUser:value.needsUser,summary:short('summary',260),next:short('next',160),reportedProgress:short('reportedProgress',240)};
       if(value.disagreement===true){control.disagreement=true;control.needsUser=true;control.continue=false;}
       if(typeof value.question==='string')control.question=short('question',1000);
+      const memory=value.projectMemory;
+      if(memory&&Number.isInteger(memory.baseRevision)&&memory.baseRevision>0&&typeof memory.content==='string'&&memory.content.trim()&&memory.content.length<=18000&&!memory.content.includes(AUTO_MARKER)){
+        control.projectMemory={baseRevision:memory.baseRevision,content:memory.content.trim()};
+      }
     }
   }catch{}
   const reply=visibleReply(source);

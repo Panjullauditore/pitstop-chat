@@ -10,11 +10,13 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["'Plus Jakarta Sans'", "system-ui", "-apple-system", "sans-serif"],
+        sans: ["'Chivo'", "system-ui", "-apple-system", "sans-serif"],
+        display: ["'Space Grotesk'", "sans-serif"],
         mono: ["'JetBrains Mono'", "monospace"],
       },
       colors: {
-        brand: { orange: "#FF4F28", blue: "#2563EB", cyan: "#06B6D4", slate: "#0F172A", alabaster: "#F8FAFC" },
+        brand: { orange: "#FF4500", blue: "#2563EB", cyan: "#00DAF3", yellow: "#FFE500", lime: "#A3E635", slate: "#0B0E14", alabaster: "#E2E8F0" },
+        rail: "hsl(var(--rail))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

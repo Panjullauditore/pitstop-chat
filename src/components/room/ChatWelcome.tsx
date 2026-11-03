@@ -8,13 +8,13 @@ import {BrandLogo} from './BrandLogo';
 export const ChatWelcome = memo(function ChatWelcome({onPromptSelected}:{onPromptSelected:(text:string)=>void}) {
   const {t}=useI18n();
   return <section aria-label={t("Mulai diskusi")} className="flex-1 min-h-0 overflow-y-auto bg-background px-4 sm:px-6 py-6 [contain:paint]">
-    <div className="max-w-[760px] mx-auto min-h-full grid content-center">
+    <div className="max-w-[880px] mx-auto min-h-full grid content-center">
           <div className="shrink-0 py-6 sm:py-8">
-            <div className="flex flex-col items-center text-center">
-              <BrandLogo size={64}/>
-              <h2 className="mt-5 text-3xl font-bold tracking-tight">Pitstop</h2>
-              <p className="mt-2 text-xs font-semibold text-primary">Multiple minds. One team. One goal.</p>
-              <p className="mt-5 text-lg font-semibold">{t("Apa yang ingin dibahas?")}</p>
+            <div className="flex flex-col items-start text-left">
+              <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-primary/40 bg-card"><BrandLogo size={58}/></div>
+              <h2 className="mt-5 text-5xl font-display font-bold tracking-tight">Pitstop</h2>
+              <p className="mt-2 text-xs font-mono text-primary">Multiple minds. One team. One goal.</p>
+              <p className="mt-5 text-xl font-display font-semibold">{t("Apa yang ingin dibahas?")}</p>
               <p className="text-sm text-muted-foreground leading-6 mt-2 max-w-lg">{t("Tulis pesan untuk tim. Konsep dan keputusan disimpan di Project Memory; cara agent berkomunikasi diatur lewat Soul Memory.")}</p>
             </div>
             <div className="mt-7 grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">

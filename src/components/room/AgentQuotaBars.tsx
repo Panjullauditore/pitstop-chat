@@ -29,7 +29,7 @@ export function AgentQuotaBars({agent,quotaStatus,token,onQuotaUpdated}:{agent:A
   const data=local||quotaStatus?.data;
   const rows=quotaRows(agent,data);
   const groupCount=new Set(rows.map(row=>row.group)).size;
-  return <section aria-label={t("Sisa limit {0}", [agent.name])} className="border-t border-border/50 pt-3 space-y-2.5">
+  return <section aria-label={t("Sisa limit {0}", [agent.name])} className="space-y-2.5">
     <div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">{t("Sisa limit")}</span>{!['claude','deepseek'].includes(agent.id)&&<button type="button" onClick={()=>void refresh(true)} disabled={loading||agent.connection!=='connected'} aria-label={t("Perbarui limit {0}", [agent.name])} title={t("Perbarui limit")} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-40"><RefreshCw className={`w-3 h-3 ${loading?'animate-spin':''}`}/></button>}</div>
     {rows.length?rows.map(({group,bucket},index)=>{
       const available=!bucket.disabled&&typeof bucket.remainingPercent==='number'&&Number.isFinite(bucket.remainingPercent);
