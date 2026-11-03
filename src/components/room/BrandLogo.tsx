@@ -10,7 +10,7 @@ export function BrandLogo({ className = "", size = 32 }: BrandLogoProps) {
   const {t}=useI18n();
   return (
     <Image
-      src="/brand/pitlane-symbol.png"
+      src="/brand/pitstop-symbol.png"
       alt={t("Logo Pitstop — simpul kolaborasi oranye, biru, dan cyan")}
       width={size}
       height={size}

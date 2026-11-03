@@ -7,7 +7,7 @@ Aplikasi ruang diskusi kolaboratif untuk pengguna, Codex, Antigravity, dan Claud
 ## 🚀 Menjalankan Aplikasi di Windows
 
 ### Cara Termudah (Otomatis)
-1. Klik dua kali berkas **`Start Pitstop.cmd`** (atau `Start Pitlane.cmd`) di folder project.
+1. Klik dua kali berkas **`Start Pitstop.cmd`** di folder project.
 2. Launcher akan otomatis:
    - Memastikan backend Node.js aktif di `127.0.0.1:4318`.
    - Menjalankan Next.js frontend di `http://127.0.0.1:4317`.

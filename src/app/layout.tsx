@@ -5,8 +5,8 @@ import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   icons: {
-    icon: [{ url: "/brand/pitlane-symbol.png", type: "image/png" }],
-    apple: "/brand/pitlane-symbol.png",
+    icon: [{ url: "/brand/pitstop-symbol.png", type: "image/png" }],
+    apple: "/brand/pitstop-symbol.png",
   },
   applicationName: "Pitstop",
   title: "Pitstop — Multiple Minds. One Team. One Goal.",
