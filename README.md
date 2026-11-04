@@ -44,7 +44,7 @@ Buka: <http://127.0.0.1:4317>
 ```bash
 npm test
 ```
-Menjalankan seluruh 60 pengujian unit dan integrasi HTTP (`node --test test/*.test.mjs`).
+Menjalankan seluruh pengujian unit dan integrasi HTTP (`node --test test/*.test.mjs`).
 
 ## Lampiran file dan foto
 
@@ -69,18 +69,18 @@ node test/vision-smoke.mjs
 Aplikasi telah dimigrasikan secara penuh ke Next.js App Router dengan pemecahan komponen modular:
 
 - **Sidebar (`src/components/room/Sidebar.tsx`)**: Navigasi utama, brand neutral, tombol *Sesi Baru*, profil pengguna, daftar riwayat sesi, dan daftar agent aktif.
-- **Session History (`src/components/room/SessionHistory.tsx`)**: Daftar percakapan lama, judul, waktu update berformat WIB, counter pesan, dan tombol hapus dengan konfirmasi aman.
+- **Project Navigation (`src/components/room/ProjectNavigation.tsx`)**: Daftar proyek dan sesi, pencarian pesan, pindah chat, ubah judul, serta hapus dengan konfirmasi.
 - **Delete Session Alert (`src/components/room/DeleteSessionAlert.tsx`)**: Menggantikan `window.confirm()` dengan shadcn `AlertDialog` yang memiliki tombol **Batal** dan tombol merah **Hapus Percakapan**.
 - **Chat Messages (`src/components/room/ChatMessages.tsx`)**: Transkrip percakapan real-time dengan streaming SSE, indikator kursor mengetik, penyorot sintaksis kode, dan tombol *Simpan ke Project Memory*.
 - **Composer (`src/components/room/Composer.tsx`)**: Textarea responsif auto-grow, pemilih mode (diskusi otomatis hemat kuota, semua agent, atau agent tertentu), tombol Stop respons instan, dan hint keyboard.
 - **Agent Card (`src/components/room/AgentCard.tsx`)**: Menampilkan nama agent, avatar, model/effort, badge status *Connected* / *Disconnected* nyata, tombol limit, dan tombol pintas Reconnect.
-- **Quota Popover (`src/components/room/QuotaPopover.tsx`)**: Popover sisa kuota dengan bilah kemajuan, waktu reset WIB, penanganan sisa limit kritis $\le 5\%$, dan label jujur *"Tidak tersedia"* jika provider belum melaporkan data.
+- **Agent Quota (`src/components/room/AgentQuotaBars.tsx`, `AgentQuotaIndicator.tsx`)**: Sisa kuota dan waktu reset di panel tim, termasuk indikator ringkas saat panel ditutup.
 - **Reconnect Dialog (`src/components/room/ReconnectDialog.tsx`)**: Dialog petunjuk login CLI resmi dan tombol *Hubungkan Otomatis* untuk mendeteksi ulang CLI dan akun lokal.
-- **Model Selector Dialog (`src/components/room/ModelSelectorDialog.tsx`)**: Konfigurasi model aktif dan reasoning effort per provider dengan tombol refresh akun/model.
+- **Agent Profile (`src/components/room/AgentProfileDialog.tsx`)**: Pengaturan profil, model/effort, dan koneksi melalui tombol pengaturan tiap bot.
 - **Memory Drawer (`src/components/room/SoulMemoryDrawer.tsx`)**: Dua editor terpisah: Project Memory untuk konsep/perkembangan proyek, dan Soul Memory global untuk cara berkomunikasi dengan agent.
 - **Attendance Dialog (`src/components/room/AttendanceDialog.tsx`)**: Panel verifikasi kehadiran yang secara eksklusif hanya menampilkan jawaban:
   `Hadir, Siap Melanjutkan Project [nama project dari Project Memory]`
-- **Profile Dialog (`src/components/room/ProfileDialog.tsx`)**: Form penggantian nama tampilan pengguna yang tersinkronisasi ke profil sesi.
+- **Settings (`src/components/room/SettingsDialog.tsx`)**: Profil pengguna, bahasa, Soul Memory, serta pengaturan extension dan bridge.
 
 ---
 

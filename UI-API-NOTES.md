@@ -1,4 +1,4 @@
-# Pitlane — kontrak memori, sesi dan CLI
+# Pitstop — kontrak memori, sesi dan CLI
 
 Frontend Next.js: `127.0.0.1:4317`. Backend API: `127.0.0.1:4318`. Halaman utama backend mengarahkan ke frontend. Mutasi memakai `X-Room-Token`; mutasi konteks juga mengirim `X-Room-Session` untuk mencegah penulisan dari tab tertinggal.
 
@@ -14,7 +14,7 @@ Project Memory menyimpan konsep inti dan keputusan yang diedit user, pin pesan y
 
 - Penyimpanan proyek: `data/memories/<projectId>/brain.json`, dipakai bersama semua sesi proyek.
 - Chat tanpa proyek: `data/memories/<sessionId>/brain.json`, khusus chat itu.
-- `POST /api/project-memory`: `{content, revision, scopeId}`, mengembalikan `{projectMemory}`. Core maksimal 18.000 karakter. `scopeId` memproteksi editor jika chat dipindahkan ke proyek berbeda saat dibuka. Revisi basi ditolak.
+- `POST /api/project-memory`: `{content, revision, scopeId}`, mengembalikan `{projectMemory}`. Batas core dapat diatur per scope dari 1.000 sampai 100.000 karakter (default 18.000). `scopeId` memproteksi editor jika chat dipindahkan ke proyek berbeda saat dibuka. Revisi basi ditolak.
 - `POST /api/pin`: `{messageId}`, menyimpan pesan selesai ke Project Memory, mengembalikan `{projectMemory}`.
 - `syncMemory` pada `/api/send` mengatur pencatatan otomatis Project Memory, tanpa mengubah Soul komunikasi.
 - `GET /api/brain/export`: cadangan Soul komunikasi dan Project Memory aktif. Token dibutuhkan.
@@ -43,6 +43,14 @@ Absen membaca nama proyek dari Project Memory. Pengaturan model dan nama penggun
 Indeks berada di `data/sessions.json`; transkrip awal tetap di `data/room.json`, transkrip baru di `data/sessions/<id>/room.json`. Sesi yang dihapus tetap memiliki berkas arsip. Migrasi riwayat browser idempoten.
 
 Endpoint lain: `/api/bootstrap`, `/events`, `/send`, `/stop`, `/attendance`, `/models`, `/reconnect`, `/agents`, `/settings`, `/profile`, `/quota`, `/export`. Source CLI: bantuan CLI lokal, [OpenAI non-interactive mode](https://developers.openai.com/codex/noninteractive), dan [Claude CLI reference](https://code.claude.com/docs/en/cli-reference).
+
+## Pembaruan rangkuman dan arsip
+
+- `POST /api/project-memory/summary/settings`: `{scopeId, autoEnabled, agentId}`. Agent perangkum tidak mengubah penugasan PM.
+- `POST /api/project-memory/summary/limit`: `{scopeId, maxCharacters}`. Batas yang lebih kecil dari isi tersimpan ditolak tanpa memotong teks.
+- `POST /api/project-memory/summary/update` dan `/stop`: `{scopeId}`. Revisi dan identitas proyek diperiksa sebelum rangkuman disimpan.
+- Penanda pesan per sesi memastikan pembaruan berikutnya melanjutkan diskusi yang belum tercakup.
+- Status arsip abu-abu berarti belum dikonfirmasi masuk core; hijau berarti versi catatan tersebut telah diakui dalam rangkuman tersimpan. Catatan hijau dibersihkan pada 00.00 WIB berikutnya; chat asli dan penanda tetap ada.
 
 ## Verifikasi
 
