@@ -109,8 +109,8 @@ export interface BrainSnapshot {
   soul: SoulData;
   selections: Record<string, ModelSelection>;
   auto?: {
-    userNotes?: Array<{ id: string; text: string; at: string }>;
-    updates?: Array<{ id: string; agent: string; at: string; summary: string; next?: string; reportedProgress?: string }>;
+    userNotes?: Array<{ id: string; text: string; at: string; memoryStatus?: ArchiveMemoryStatus }>;
+    updates?: Array<{ id: string; agent: string; at: string; summary: string; next?: string; reportedProgress?: string; memoryStatus?: ArchiveMemoryStatus }>;
   };
 }
 
@@ -146,13 +146,19 @@ export interface LastRunState {
   at: string;
 }
 
+export interface ArchiveMemoryStatus {incorporated:boolean;incorporatedAt:string|null;deleteAt:string|null;}
 export interface ProjectMemoryData extends SoulData {
+  maxCharacters?:number;
+  coreUpdatedAt?:string;
+  summaryUpdatedAt?:string;
+  summary?:{autoEnabled:boolean;agentId:string;agentIds:string[];status:'idle'|'running'|'done'|'error'|'stopped';error?:string|null;pendingMessages:number;lastUpdatedAt:string|null;throughAt:string|null;batch?:number;totalBatches?:number};
   managerId?: string|null;
-  gmDecisions?: {id:string;text:string;question:string;at:string}[];
+  gmDecisions?: {id:string;text:string;question:string;at:string;memoryStatus?:ArchiveMemoryStatus}[];
   scopeId: string; projectId: string | null; scopeName: string; shared: boolean; auto?: BrainSnapshot["auto"];
 }
 
 export interface RoomSnapshot {
+  activeProjectId?: string|null;
   language?: 'en'|'id';
   webRequest?: {id:string;agentId:string;sessionId:string;prompt:string;attachments:{id:string;name:string}[];createdAt:string}|null;
   projectMemory?: ProjectMemoryData | null;
@@ -208,4 +214,4 @@ export interface SessionData {
 
 export interface LinkedAppChat { remoteUrl?:string; transport?:string; id:string; title:string; cwd:string; source:string; state:string; linkedAt?:string; lastSyncedAt?:string; error?:string|null }
 
-export interface ProjectData { linkedApps?: Partial<Record<"codex"|"antigravity",LinkedAppChat>>; managerId?: string; pendingDecision?: {id:string;question:string;raisedBy:string;sessionId:string;at:string}|null; decisions?: {id:string;text:string;question:string;at:string}[]; id: string; name: string; agentIds: string[]; createdAt: string }
+export interface ProjectData { status?: "active"|"completed"; completedAt?: string; linkedApps?: Partial<Record<"codex"|"antigravity"|"deepseek",LinkedAppChat>>; managerId?: string; pendingDecision?: {id:string;question:string;raisedBy:string;sessionId:string;at:string}|null; decisions?: {id:string;text:string;question:string;at:string}[]; id: string; name: string; agentIds: string[]; createdAt: string }

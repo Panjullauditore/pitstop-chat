@@ -1,3 +1,4 @@
+import {MAX_MEMORY_CHARACTERS} from './src/lib/memory-limits.mjs';
 export const AUTO_MARKER = '<!-- PITLANE_AUTO_MEMORY -->';
 export const POLICY_MARKER = '## Gaya diskusi dan memori otomatis';
 export const COMMUNICATION_POLICY = `${POLICY_MARKER}
@@ -31,7 +32,7 @@ export function parseReply(text) {
       if(value.disagreement===true){control.disagreement=true;control.needsUser=true;control.continue=false;}
       if(typeof value.question==='string')control.question=short('question',1000);
       const memory=value.projectMemory;
-      if(memory&&Number.isInteger(memory.baseRevision)&&memory.baseRevision>0&&typeof memory.content==='string'&&memory.content.trim()&&memory.content.length<=18000&&!memory.content.includes(AUTO_MARKER)){
+      if(memory&&Number.isInteger(memory.baseRevision)&&memory.baseRevision>0&&typeof memory.content==='string'&&memory.content.trim()&&memory.content.length<=MAX_MEMORY_CHARACTERS&&!memory.content.includes(AUTO_MARKER)){
         control.projectMemory={baseRevision:memory.baseRevision,content:memory.content.trim()};
       }
     }

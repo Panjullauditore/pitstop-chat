@@ -3,6 +3,8 @@ import { readFile, writeFile, rename, mkdir, appendFile } from 'node:fs/promises
 import { join } from 'node:path';
 import { composeSoul, stripAutomaticMemory, COMMUNICATION_POLICY, POLICY_MARKER } from './protocol.mjs';
 import {soulWithLanguage} from './src/lib/language.mjs';
+import {coveredAndExpired} from './memory-retention.mjs';
+import {DEFAULT_MEMORY_CHARACTERS,memoryCharacterLimit,validMemoryLimit} from './src/lib/memory-limits.mjs';
 
 export class Brain extends EventEmitter {
   constructor(directory,seed,{documentPath,communicationPolicy=true,automaticMemory=true,languageDocument=false,projectMemory=false}={}) {
@@ -24,7 +26,8 @@ export class Brain extends EventEmitter {
       next.soul.revision++;next.soul.updatedAt=new Date().toISOString();await this.commit(next);
     }else await this.mirror();
   }
-  snapshot(){const state=structuredClone(this.value);state.soul.content=this.automaticMemory ? composeSoul(state) : state.soul.content;return state;}
+  characterLimit(){return this.projectMemory?memoryCharacterLimit(this.value.summarySettings):DEFAULT_MEMORY_CHARACTERS;}
+  snapshot(){const state=structuredClone(this.value);if(this.projectMemory)state.soul.maxCharacters=this.characterLimit();state.soul.content=this.automaticMemory ? composeSoul(state) : state.soul.content;return state;}
   enqueue(action){const op=this.queue.then(action);this.queue=op.catch(()=>{});return op;}
   async commit(next,backup=true){
     if(backup)await appendFile(join(this.directory,'brain-history.jsonl'),JSON.stringify(this.value)+'\n','utf8');
@@ -43,9 +46,9 @@ export class Brain extends EventEmitter {
     if(typeof content!=='string')throw new Error('Soul harus berupa teks.');
     content=stripAutomaticMemory(content);
     if(this.communicationPolicy && content && !content.includes(POLICY_MARKER))content+='\n\n'+COMMUNICATION_POLICY;
-    if(!content.trim() || content.length>18000)throw new Error('Bagian inti Soul harus berisi 1–18000 karakter.');
+    if(!content.trim() || content.length>this.characterLimit())throw new Error(`Memory must contain 1–${this.characterLimit()} characters.`);
     if(revision!==this.value.soul.revision)throw new Error('Soul sudah berubah di jendela lain. Tutup lalu buka editor untuk memuat versi terbaru.');
-    const next=structuredClone(this.value);next.soul={...next.soul,content:content.trim(),revision:revision+1,updatedAt:new Date().toISOString()};
+    const next=structuredClone(this.value),at=new Date().toISOString();next.soul={...next.soul,content:content.trim(),revision:revision+1,updatedAt:at,coreUpdatedAt:at};
     delete next.soulLocales;
     return this.commit(next);
   });}
@@ -54,11 +57,34 @@ export class Brain extends EventEmitter {
     const next=structuredClone(this.value);
     if(next.soul.pinnedIds?.includes(message.id))throw new Error('Pesan ini sudah tersimpan ke Soul.');
     const content=next.soul.content+'\n\n### Catatan dipilih user — '+new Date().toLocaleDateString('id-ID',{timeZone:'Asia/Jakarta'})+'\nSumber: '+message.role+'; disimpan user dari room.\n'+message.text;
-    if(content.length>18000)throw new Error('Soul penuh. Ringkas catatan lewat editor sebelum menambahkan keputusan.');
-    next.soul={...next.soul,content,revision:next.soul.revision+1,updatedAt:new Date().toISOString(),pinnedIds:[...(next.soul.pinnedIds || []),message.id]};
+    if(content.length>this.characterLimit())throw new Error('Memory is full. Increase its character limit or shorten the core first.');
+    next.soul={...next.soul,content,revision:next.soul.revision+1,updatedAt:new Date().toISOString(),coreUpdatedAt:new Date().toISOString(),pinnedIds:[...(next.soul.pinnedIds || []),message.id]};
     return this.commit(next);
   });}
   saveSelections(selections){return this.enqueue(async()=>{const next=structuredClone(this.value);next.selections=structuredClone(selections);return this.commit(next);});}
+  saveSummarySettings(settings){return this.enqueue(async()=>{
+    if(Object.hasOwn(settings,'maxCharacters')&&(!validMemoryLimit(settings.maxCharacters)||settings.maxCharacters<this.value.soul.content.length))throw new Error('Choose 1,000–100,000 characters, at least as many as the current core. Existing content was kept.');
+    const next=structuredClone(this.value);next.summarySettings={...next.summarySettings,...structuredClone(settings)};return this.commit(next);
+  });}
+  saveSummary(content,revision,{coverage,archiveCoverage,archiveReviewed,agentId,throughAt,now=Date.now()}){return this.enqueue(async()=>{
+    if(typeof content!=='string'||!content.trim()||content.length>this.characterLimit()||content.includes('<!-- PITLANE_AUTO_MEMORY -->'))throw new Error('Invalid Project Memory summary or selected character limit exceeded.');
+    if(revision!==this.value.soul.revision)throw new Error('Project Memory changed while summarizing. Your newer edit was kept; retry the update.');
+    const next=structuredClone(this.value),at=new Date(now).toISOString();
+    const incorporationTimes={...(next.soul.summaryArchiveIncorporatedAt||{})};
+    for(const [key,hash] of Object.entries(archiveCoverage||{}))if(!incorporationTimes[key]||next.soul.summaryArchiveCoverage?.[key]!==hash)incorporationTimes[key]=at;
+    next.soul={...next.soul,content:content.trim(),revision:revision+1,updatedAt:at,coreUpdatedAt:at,summaryUpdatedAt:at,summaryThroughAt:throughAt,summaryCoverage:coverage,summaryArchiveCoverage:archiveCoverage||next.soul.summaryArchiveCoverage||{},summaryArchiveReviewed:archiveReviewed||next.soul.summaryArchiveReviewed||{},summaryArchiveIncorporatedAt:incorporationTimes,summarySource:{agent:agentId,kind:'summary'}};
+    return this.commit(next);
+  });}
+  pruneSummaryArchive(now=Date.now()){return this.enqueue(async()=>{
+    const next=structuredClone(this.value);let removed=0;
+    for(const kind of ['gmDecisions','userNotes','updates'])if(next.auto?.[kind]){
+      const times=Object.fromEntries(Object.keys(next.soul.summaryArchiveCoverage||{}).map(key=>[key,next.soul.summaryArchiveIncorporatedAt?.[key]||next.soul.summaryUpdatedAt]));
+      const kept=next.auto[kind].filter(item=>!coveredAndExpired(kind,item,next.soul.summaryArchiveCoverage,now,times));removed+=next.auto[kind].length-kept.length;next.auto[kind]=kept;
+    }
+    if(!removed)return 0;
+    // Activity revision changes; core edit time and message coverage stay untouched.
+    next.soul.revision++;await this.commit(next);return removed;
+  });}
   saveLanguage(language){return this.enqueue(async()=>{
     if(!['en','id'].includes(language))throw new Error('Choose English or Indonesian.');
     const next=structuredClone(this.value);next.preferences={...next.preferences,language};return this.commit(next);
@@ -100,7 +126,7 @@ export class Brain extends EventEmitter {
     const next=structuredClone(this.value);next.auto ||= {userNotes:[],updates:[]};
     next.auto.updates=[...(next.auto.updates || []),{id:message.id,agent:message.role,at:message.at,summary:control.summary,next:control.next,reportedProgress:control.reportedProgress}].slice(-6);
     const memory=control.projectMemory;
-    if(this.projectMemory&&memory&&!control.needsUser&&!control.disagreement&&memory.baseRevision===this.value.soul.revision&&typeof memory.content==='string'&&memory.content.trim()&&memory.content.length<=18000&&!memory.content.includes('<!-- PITLANE_AUTO_MEMORY -->')){
+    if(this.projectMemory&&memory&&!control.needsUser&&!control.disagreement&&memory.baseRevision===this.value.soul.revision&&typeof memory.content==='string'&&memory.content.trim()&&memory.content.length<=this.characterLimit()&&!memory.content.includes('<!-- PITLANE_AUTO_MEMORY -->')){
       next.soul.content=memory.content.trim();
       next.soul.summaryUpdatedAt=message.at;
       next.soul.summarySource={messageId:message.id,agent:message.role};

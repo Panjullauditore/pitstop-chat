@@ -14,6 +14,7 @@ import { saveSoulDocument } from "@/lib/api";
 import { formatJakartaDate } from "@/lib/utils";
 import { Download, Sparkles, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import {useDownloadConfirmation,downloadFile} from './DownloadConfirmation';
 
 interface SoulEditorDialogProps {
   open: boolean;
@@ -34,6 +35,7 @@ export function SoulEditorDialog({
   updatedAt,
   onSaved,
 }: SoulEditorDialogProps) {
+  const confirmDownload=useDownloadConfirmation();
   const [content, setContent] = useState(initialContent);
   const [saving, setSaving] = useState(false);
   const [currentRev, setCurrentRev] = useState(revision);
@@ -75,7 +77,7 @@ export function SoulEditorDialog({
 
   const handleBackup = () => {
     if (token) {
-      window.location.href = `/api/brain/export?token=${encodeURIComponent(token)}`;
+      confirmDownload({filename:'pitstop-memories.json',run:()=>downloadFile(`/api/brain/export?token=${encodeURIComponent(token)}`,'pitstop-memories.json')});
     }
   };
 

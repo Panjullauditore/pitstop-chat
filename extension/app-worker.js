@@ -47,8 +47,13 @@ async function loop(){
 chrome.runtime.onMessage.addListener((message,sender,reply)=>{
   if(!message.action?.startsWith('app-'))return false;
   (async()=>{
-    if(message.action==='app-pair'){
-      if(sender.tab||sender.url!==chrome.runtime.getURL('popup.html'))throw new Error('Pair from the Pitlane Bridge popup.');
+    if(message.action==='app-pair'||message.action==='app-site-pair'){
+      if(message.action==='app-site-pair'){
+        let origin;try{origin=new URL(sender.url).origin;}catch{}
+        if(origin!=='http://127.0.0.1:4317'||!sender.tab||sender.frameId!==0)throw new Error('Connect from the local Pitstop page.');
+        if(active)throw new Error('Stop the Antigravity response before changing its connection.');
+        if(!(await tabs()).length)throw new Error('Open Antigravity Remote Control in this Chrome profile and wait for its chat editor. Existing pairing was kept.');
+      }else if(sender.tab||sender.url!==chrome.runtime.getURL('popup.html'))throw new Error('Pair from the Pitlane Bridge popup.');
       const data=await api('/pair',{code:message.code});await chrome.storage.local.set({appBridgeToken:data.token,appBridgeStatus:'Paired. Keep Antigravity Remote Control open.'});void loop();return {paired:true};
     }
     if(!active||sender.tab?.id!==active.tabId||sender.frameId!==active.frameId||message.requestId!==active.id)throw new Error('This tab does not own the App request.');

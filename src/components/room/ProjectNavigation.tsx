@@ -1,13 +1,14 @@
 "use client";
 import {useI18n} from "@/lib/i18n";
 import { useState } from 'react';
-import { Plus, Folder, FolderOpen, MoreHorizontal, ChevronRight } from 'lucide-react';
+import { Plus, Folder, FolderOpen, MoreHorizontal, ChevronRight, Check, CircleDot } from 'lucide-react';
 import { ProjectData, SessionData, AgentDefinition } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { LinkedAppChatsDialog } from "./LinkedAppChatsDialog";
 import { CreateProjectDialog } from "./CreateProjectDialog";
+import {LiveDot} from "./LiveDot";
 import { RenameSessionDialog } from './RenameSessionDialog';
 import { DeleteSessionAlert } from './DeleteSessionAlert';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
@@ -15,12 +16,13 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 interface Props {
   token:string;
   searchOpen?: boolean;
+  activeProjectId?: string|null;
   projects: ProjectData[]; sessions: SessionData[]; agents: AgentDefinition[]; activeId: string;
   onSelect: (id:string)=>void; onNew: (projectId:string|null)=>Promise<void>;
   onProject: (action:string,input:Record<string,unknown>)=>Promise<void>;
   onRename: (id:string,title:string)=>void; onDelete: (id:string)=>void;
 }
-export function ProjectNavigation({token,searchOpen=false,projects,sessions,agents,activeId,onSelect,onNew,onProject,onRename,onDelete}:Props) {
+export function ProjectNavigation({token,searchOpen=false,projects,sessions,agents,activeId,activeProjectId,onSelect,onNew,onProject,onRename,onDelete}:Props) {
   const {t}=useI18n();
   const [linkedProjectId,setLinkedProjectId]=useState<string|null>(null);
   const [menuOpenId,setMenuOpenId]=useState<string|null>(null);
@@ -45,6 +47,7 @@ export function ProjectNavigation({token,searchOpen=false,projects,sessions,agen
     await onProject(editor?.kind==='new'?'new':editor?.kind==='project'?'update':'session-agents',editor?.kind==='session'?{sessionId:editor.id,agentIds:inherit?null:ids}:{projectId:editor?.id,name,agentIds:ids,...(managerId?{managerId}:{})});setEditor(null);
   }catch(e:any){setError(e.message);}finally{setBusy(false);}};
   const move=(sessionId:string,projectId:string|null)=>{void onProject('move',{sessionId,projectId}).catch(e=>setError(e.message));};
+  const changeStatus=(project:ProjectData,status:'active'|'completed')=>{setMenuOpenId(null);setError('');void onProject('status',{projectId:project.id,status}).catch(error=>setError(error.message));};
   const menuClass="w-full rounded-md px-2.5 py-2 text-left text-xs hover:bg-secondary focus-visible:bg-secondary";
   const group=(project:ProjectData|null)=>{
     const key=project?.id||'loose';
@@ -60,10 +63,11 @@ export function ProjectNavigation({token,searchOpen=false,projects,sessions,agen
       onDrop={event=>{event.preventDefault();setDrop(null);const id=event.dataTransfer.getData('application/x-pitlane-session');if(id){move(id,project?.id||null);if(project)setCollapsed(old=>{const next=new Set(old);next.delete(project.id);return next;});}}}>
       {project?<div className="group/project flex items-center rounded-lg pr-1 hover:bg-secondary/50">
         <button type="button" aria-expanded={!folded} onClick={()=>setCollapsed(old=>{const next=new Set(old);next.has(project.id)?next.delete(project.id):next.add(project.id);return next;})} className="min-w-0 flex-1 flex items-center gap-2.5 pl-2 pr-1 py-2 text-left text-[15px]" title={project.name}>
-          {folded?<Folder className="w-[17px] h-[17px] shrink-0"/>:<FolderOpen className="w-[17px] h-[17px] shrink-0"/>}<span className="truncate">{project.name}</span>
+          {folded?<Folder className="w-[17px] h-[17px] shrink-0"/>:<FolderOpen className="w-[17px] h-[17px] shrink-0"/>}<span className="truncate">{project.name}</span>{project.status!=='completed'&&(project.status==='active'||activeProjectId===project.id)&&<LiveDot className="ml-auto h-1.5 w-1.5"/>}
         </button>
+        {project.status==='completed'&&<span role="img" aria-label={t("Project Selesai")} title={t("Project Selesai")} className="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-brand-lime/50 bg-brand-lime/10 text-brand-lime"><Check className="h-3 w-3" aria-hidden="true"/></span>}
         <Popover open={menuOpenId===project.id} onOpenChange={value=>setMenuOpenId(value?project.id:null)}><PopoverTrigger asChild><button type="button" aria-label={t("Menu proyek {0}", [project.name])} className="p-1.5 rounded text-muted-foreground hover:text-foreground opacity-100 sm:opacity-0 sm:group-hover/project:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"><MoreHorizontal className="w-4 h-4"/></button></PopoverTrigger>
-          <PopoverContent align="end" className="w-48 p-1"><button className={menuClass} onClick={()=>{setMenuOpenId(null);void onNew(project.id);}}>{t("Chat baru di proyek")}</button><button className={menuClass} onClick={()=>{setMenuOpenId(null);open('project',project.id);}}>{t("Pengaturan proyek & agent")}</button><button className={menuClass} onClick={()=>{setMenuOpenId(null);setLinkedProjectId(project.id);}}>Linked App Chat</button><button className={`${menuClass} text-destructive`} onClick={()=>{setMenuOpenId(null);setError('');setDeleteConfirmation('');setRemoveProject(project);}}>{t("Hapus proyek")}</button></PopoverContent>
+          <PopoverContent align="end" className="w-52 p-1"><button className={`${menuClass} flex items-center gap-2`} onClick={()=>changeStatus(project,'active')}><CircleDot className="h-3.5 w-3.5 text-brand-lime"/>{t("Jadikan Proyek Aktif")}</button><button className={`${menuClass} flex items-center gap-2 disabled:opacity-50`} disabled={project.status==='completed'} title={t("Project Selesai")} onClick={()=>changeStatus(project,'completed')}><Check className="h-3.5 w-3.5 text-brand-lime"/>{t("Tandai proyek selesai")}</button><div className="my-1 border-t border-border"/><button className={menuClass} onClick={()=>{setMenuOpenId(null);void onNew(project.id);}}>{t("Chat baru di proyek")}</button><button className={menuClass} onClick={()=>{setMenuOpenId(null);open('project',project.id);}}>{t("Pengaturan proyek & agent")}</button><button className={menuClass} onClick={()=>{setMenuOpenId(null);setLinkedProjectId(project.id);}}>Linked App Chat</button><button className={`${menuClass} text-destructive`} onClick={()=>{setMenuOpenId(null);setError('');setDeleteConfirmation('');setRemoveProject(project);}}>{t("Hapus proyek")}</button></PopoverContent>
         </Popover>
       </div>:<h3 className="px-2 pt-6 pb-2 text-[11px] font-mono font-medium tracking-wide text-muted-foreground">{t("Terbaru")}</h3>}
       {!folded&&rows.map(session=><div key={session.id} draggable title={t("Seret chat ke proyek")} onDragStart={event=>{event.dataTransfer.setData('application/x-pitlane-session',session.id);event.dataTransfer.effectAllowed='move';}}

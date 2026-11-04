@@ -4,26 +4,27 @@
   addEventListener('message',event=>{
     if(event.source!==window||event.origin!==location.origin||event.data?.source!=='pitlane-content')return;
     if(event.data.kind==='ping')window.postMessage({source:'pitlane-page',kind:'ready',version:2},location.origin);
-    if(event.data.kind==='arm'){job={id:event.data.id,prompt:event.data.prompt};emit(job,{kind:'armed',version:2});}
+    if(event.data.kind==='arm'){job={id:event.data.id,prompt:String(event.data.prompt).replace(/\r\n?/g,'\n'),chatId:event.data.chatId||null};emit(job,{kind:'armed',version:2});}
     if(event.data.kind==='disarm')job=null;
   });
   const emit=(current,event)=>window.postMessage({source:'pitlane-page',id:current.id,...event},location.origin);
   const chunks=(current,text)=>{for(let offset=0;offset<text.length;offset+=32768)emit(current,{kind:'chunk',chunk:text.slice(offset,offset+32768)});};
+  const matches=(payload,current)=>!!current&&typeof payload?.prompt==='string'&&payload.prompt.replace(/\r\n?/g,'\n')===current.prompt;
   const original=window.fetch;
   window.fetch=async function(...args){
     const request=args[0],url=new URL(typeof request==='string'||request instanceof URL?String(request):request.url,location.href);
     let payload=null;
     if(job&&url.origin===location.origin&&url.pathname==='/api/v0/chat/completion'){
       try{payload=JSON.parse(args[1]?.body||(request instanceof Request?await request.clone().text():'{}'));}catch{}
-      if(payload?.prompt===job.prompt&&payload.parent_message_id!=null){emit(job,{kind:'error',message:'DeepSeek did not open a fresh chat. Nothing was sent.'});throw new Error('Pitlane requires a fresh chat.');}
+      if(matches(payload,job)&&!job.chatId&&payload.parent_message_id!=null){emit(job,{kind:'error',message:'DeepSeek did not open a fresh chat. Nothing was sent.'});throw new Error('Pitlane requires a fresh chat.');}
     }
     const current=job;
     let response;
-    try{response=await original.apply(this,args);}catch(error){if(current&&payload?.prompt===current.prompt)emit(current,{kind:'error',message:'DeepSeek network request failed.'});throw error;}
+    try{response=await original.apply(this,args);}catch(error){if(current&&matches(payload,current))emit(current,{kind:'error',message:'DeepSeek network request failed.'});throw error;}
     if(current&&url.origin===location.origin&&/\/file\/upload/.test(url.pathname)){
       response.clone().json().then(result=>emit(current,{kind:'upload',success:response.ok&&result.code===0&&result.data?.biz_code===0})).catch(()=>emit(current,{kind:'upload',success:false}));
     }
-    if(current&&payload?.prompt===current.prompt&&url.origin===location.origin&&url.pathname==='/api/v0/chat/completion'){
+    if(current&&matches(payload,current)&&url.origin===location.origin&&url.pathname==='/api/v0/chat/completion'){
       const copy=response.clone();
       (async()=>{
         try{
@@ -45,8 +46,8 @@
       const url=metadata.get(this),current=job;
       if(current&&url?.origin===location.origin){
         let payload;try{payload=JSON.parse(body);}catch{}
-        if(url.pathname==='/api/v0/chat/completion'&&payload?.prompt===current.prompt){
-          if(payload.parent_message_id!=null){emit(current,{kind:'error',message:'DeepSeek did not open a fresh chat. Nothing was sent.'});throw new Error('Pitlane requires a fresh chat.');}
+        if(url.pathname==='/api/v0/chat/completion'&&matches(payload,current)){
+          if(!current.chatId&&payload.parent_message_id!=null){emit(current,{kind:'error',message:'DeepSeek did not open a fresh chat. Nothing was sent.'});throw new Error('Pitlane requires a fresh chat.');}
           let started=false,offset=0,failed=false;
           const fail=()=>{if(!failed){failed=true;emit(current,{kind:'error',message:'The DeepSeek XHR response was interrupted or unreadable.'});}};
           const read=()=>{

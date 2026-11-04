@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Pitlane Bridge",
-  "version": "1.1.4",
+  "version": "1.3.0",
   "description": "Connect DeepSeek and Antigravity App Remote Control to local Pitlane.",
   "minimum_chrome_version": "111",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAl0QjROScUVqObF4XeEdmgg/PkgsFcP77+nPpaGQIhBxbAgW7B8j4bkXux+OFaRt+vdoRtIo2W6P2B3E7b7gEjwryVrS4fH0BjEaFTb3WpSiievoZrpmFYkR9xujuFbvM2N2ze0e7m8XJ+euKtvLZQ4YxPuejOLFSg7CDVbPIvofgnJcZjNcdB0/Ch4SUnsrmPftwwp23/HtQN6rngoOoEDrenA4Xl5Fm5fsMmQRsD9f2BivOLNd+UO+qHl0F2TlcyCTOKqTY+HeEwIRbaaf1O3DwdQSQbxvXQqQWXbeHU0VpMeLSYV/3MGsbZDtRT+oeZGDR3Md5rYGkM3eVylcGTwIDAQAB",
@@ -39,6 +39,7 @@
         "https://chat.deepseek.com/*"
       ],
       "js": [
+        "deepseek-dom.js",
         "content.js"
       ],
       "run_at": "document_idle"
@@ -52,6 +53,15 @@
       ],
       "run_at": "document_idle",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "site-connect.js"
+      ],
+      "run_at": "document_idle"
     }
   ]
 }

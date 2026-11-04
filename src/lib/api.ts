@@ -72,6 +72,15 @@ export async function uploadChatFile(file: File, token: string, sessionId: strin
   return data.attachment;
 }
 
+export async function checkAgentConnections(token:string,agent?:string):Promise<{sessionId:string;agents:AgentDefinition[];checkedAt:string;browser:{request?:{phase:string}|null}}> {
+  const sessionId=currentSessionId;
+  const res=await fetch('/api/agents/check',{method:'POST',headers:{'Content-Type':'application/json','X-Room-Token':token,'X-Room-Session':sessionId},body:JSON.stringify(agent?{agent}:{}),signal:AbortSignal.timeout(45000)});
+  const data=await res.json();
+  if(!res.ok)throw new ApiError(data.error||'Pemeriksaan koneksi gagal.',res.status);
+  if(currentSessionId!==sessionId)throw new ApiError('Sesi aktif berubah. Periksa koneksi pada sesi saat ini.');
+  return data;
+}
+
 export async function refreshCatalogModels(token: string): Promise<Record<string, any>> {
   const res = await fetch("/api/models", {
     method: "POST",
@@ -262,6 +271,11 @@ export async function mutateProject(action: string, input: Record<string, unknow
 export async function saveProjectMemory(content:string,revision:number,token:string,scopeId:string):Promise<any>{
  const res=await fetch('/api/project-memory',{method:'POST',headers:{'Content-Type':'application/json','X-Room-Token':token,'X-Room-Session':currentSessionId},body:JSON.stringify({content,revision,scopeId})});
  const data=await res.json();if(!res.ok)throw new ApiError(data.error || 'Gagal menyimpan Project Memory.',res.status);return data.projectMemory;
+}
+
+export async function updateMemorySummary(action:'settings'|'update'|'stop'|'limit',input:Record<string,unknown>,token:string):Promise<void>{
+ const res=await fetch(`/api/project-memory/summary/${action}`,{method:'POST',headers:{'Content-Type':'application/json','X-Room-Token':token,'X-Room-Session':currentSessionId},body:JSON.stringify(input)});
+ const data=await res.json();if(!res.ok)throw new ApiError(data.error||'Memory update failed.',res.status);
 }
 
 export async function openDeepSeekBrowser(token:string):Promise<{state:RoomSnapshot;browser:{status:string;detail:string;connected:boolean}}>{

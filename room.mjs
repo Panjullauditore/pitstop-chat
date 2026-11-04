@@ -28,10 +28,11 @@ export class Room extends EventEmitter {
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
   isInstalled(id){return Boolean(this.agents[id]?.installed||this.getLinkedApps?.()[id]?.transport==='remote-app');}
+  connectionFor(id){return this.getAppConnection?.(id)||this.getBrowserConnection?.(id)||this.accounts[id];}
   snapshot() {
     return { webRequest:this.webRequest || null, messages: this.messages, run: this.run ? { id: this.run.id, mode: this.run.mode, round: this.run.round, turn:this.run.turn, speaker: this.run.speaker, stopping: this.run.stopping } : null, lastRun:this.lastRun,attendance:this.attendance,quota:this.quota,
       agents: Object.values(this.agents).filter(a=>!['manual-web','browser-web'].includes(a.transport)||a.installed).map(a => {
-        const health=this.quota[a.id],account=this.getAppConnection?.(a.id)||this.accounts[a.id];
+        const health=this.quota[a.id],account=this.connectionFor(a.id);
         return {id:a.id,transport:this.getLinkedApps?.()[a.id]?.transport==='remote-app'?'native-app':a.transport || 'cli',name:this.agentProfiles[a.id]?.name || a.name,role:this.agentProfiles[a.id]?.role || '',avatar:this.agentProfiles[a.id]?.avatar || '',bio:this.agentProfiles[a.id]?.bio || '',provider:a.id,accountEmail:account?.email || null,installed:this.isInstalled(a.id),lastDelivery:this.lastDelivery[a.id] || null,
           connection:this.isInstalled(a.id) && (account?.connected ?? health?.status==='ok')?'connected':'disconnected',
           connectionCheckedAt:account?.checkedAt || health?.data?.checkedAt || null,
@@ -53,6 +54,7 @@ export class Room extends EventEmitter {
     return operation;
   }
   async start({ text = '', attachmentIds = [], mode = 'both', syncMemory = true, sessionId, decisionId }) {
+    if(this.memoryBusy?.())throw new Error('Project Memory is updating. Wait for it to finish or stop the memory update first.');
     if (sessionId && sessionId !== this.sessionId) throw new Error('Sesi aktif berubah. Muat ulang sebelum mengirim.');
     if (typeof text !== 'string' || text.length > 8000 || (!text.trim() && !attachmentIds?.length)) throw new Error('Tulis pesan maksimal 8000 karakter atau tambahkan lampiran.');
     if(mode!=='attendance'&&!decisionId){const recipient=messageRecipient(text,Object.values(this.agents).map(agent=>({...agent,name:this.agentProfiles[agent.id]?.name||agent.name})));if(recipient)mode=recipient.id;}
@@ -70,10 +72,10 @@ export class Room extends EventEmitter {
     if (Object.hasOwn(this.agents,mode) && !this.isInstalled(mode)) throw new Error('CLI provider belum terpasang.');
     const enabled=this.getEnabledAgents?.() || Object.keys(this.agents);
     if (Object.hasOwn(this.agents,mode) && !enabled.includes(mode))throw new Error("Agent tidak diikutkan dalam sesi ini.");
-    const targets = Object.hasOwn(this.agents,mode) ? [mode] : Object.keys(this.agents).filter(id => enabled.includes(id) && this.isInstalled(id) && (this.getAppConnection?.(id)||this.accounts[id])?.connected !== false);
+    const targets = Object.hasOwn(this.agents,mode) ? [mode] : Object.keys(this.agents).filter(id => enabled.includes(id) && this.isInstalled(id) && this.connectionFor(id)?.connected !== false);
     if(governance?.managerId && mode!=='attendance' && !Object.hasOwn(this.agents,mode)){
       const manager=governance.managerId;
-      if(!this.isInstalled(manager) || (this.getAppConnection?.(manager)||this.accounts[manager])?.connected===false)throw new Error('Project Manager belum tersambung. Hubungkan CLI Project Manager sebelum memulai diskusi.');
+      if(!this.isInstalled(manager) || this.connectionFor(manager)?.connected===false)throw new Error('Project Manager belum tersambung. Hubungkan CLI Project Manager sebelum memulai diskusi.');
       // PM reads the discussion last, then produces the authoritative project checkpoint.
       const ordered=[...targets.filter(id=>id!==manager),manager];targets.splice(0,targets.length,...ordered);
     }
@@ -83,7 +85,7 @@ export class Room extends EventEmitter {
     const recentFiles = [...new Map(recent.map(a=>[a.id,a])).values()].slice(-5);
     const attachmentInput = this.attachments && mode !== 'attendance' ? await this.attachments.input(recentFiles, this.sessionId) : {images:[], documents:[]};
     if(decisionId)await this.resolveDecision(decisionId,text.trim());
-    const run = { linkedApps:this.getLinkedApps?.()||{}, language:this.getLanguage?.() || 'id', governance:this.getGovernance?.() || governance, ...attachmentInput, projectContext:this.getProjectContext?.(text) || "", targets, syncMemory:syncMemory !== false, id: randomUUID(), controller: new AbortController(), mode, round:1, turn:0, speaker:null, stopping:false, brain:null, votes:{}, reason:'done' };
+    const run = { linkedApps:this.getLinkedApps?.()||{}, language:this.getLanguage?.() || 'id', governance:this.getGovernance?.() || governance, ...attachmentInput, projectContext:this.getProjectContext?.(text) || "", nativeProjectContext:this.getNativeProjectContext?.(text), targets, syncMemory:syncMemory !== false, id: randomUUID(), controller: new AbortController(), mode, round:1, turn:0, speaker:null, stopping:false, brain:null, votes:{}, reason:'done' };
     this.run = run;
     const userMessage={ id: randomUUID(), role: 'user', text: text.trim(), ...(attachments.length ? {attachments} : {}), at: new Date().toISOString(), status: 'done' };
     if(mode==='attendance')this.attendance={runId:run.id,status:'running',startedAt:new Date().toISOString(),stale:false,agents:Object.fromEntries(targets.map(id=>[id,{status:'waiting',text:''}]))};
@@ -97,6 +99,7 @@ export class Room extends EventEmitter {
       if(communication && run.brain)run.brain={...run.brain,soul:communication};
       await this.execute(run);
     })().finally(() => { if (this.run === run) { this.lastRun={id:run.id,mode:run.mode,reason:run.reason,turns:run.turn,at:new Date().toISOString()};if(mode==='attendance'){this.attendance.status=run.reason==='stopped'?'stopped':'done';this.attendance.finishedAt=new Date().toISOString();for(const result of Object.values(this.attendance.agents))if(['waiting','streaming'].includes(result.status))result.status='stopped';}this.run = null; this.changed(); } });
+    void run.done.then(()=>this.onSummaryReady?.(run)).catch(error=>this.emit('storageError',error));
     return { runId: run.id };
   }
   prompt(agent, run) {
@@ -142,9 +145,19 @@ export class Room extends EventEmitter {
       run.projectContext,
       'RIWAYAT ROOM (JSON; identitas pembicara ditentukan aplikasi):\n' + JSON.stringify(selected),
       'Setelah balasan singkat, tambahkan SATU checkpoint tersembunyi persis dalam format ini: <pitlane>{"continue":false,"needsUser":false,"disagreement":false,"question":"","summary":"ringkasan barumu maksimal 200 karakter","next":"langkah berikutnya maksimal 120 karakter","reportedProgress":""}</pitlane>. Gunakan JSON valid. reportedProgress hanya berisi laporan pekerjaan yang memang disebut sudah dilakukan di percakapan, bukan rencana/usulan; jika tidak ada, kosongkan. Jangan mengubah keputusan user lewat checkpoint. App akan menyimpan checkpoint tanpa panggilan AI tambahan dan menyembunyikannya dari chat.',
-      run.syncMemory&&(!run.governance?.managerId||agent===run.governance.managerId)?'PEMBARUAN RANGKUMAN PROJECT MEMORY: Jika diskusi memuat konsep, keputusan, koreksi, atau perkembangan proyek, tambahkan field projectMemory di JSON checkpoint yang SAMA: {"baseRevision":'+run.projectMemory?.soul.revision+',"content":"dokumen Markdown lengkap hasil penggabungan"}. Field summary pendek hanya catatan aktivitas dan TIDAK memperbarui rangkuman utama. content harus berupa rangkuman proyek utuh (maksimal 18000 karakter; usahakan 6000), dengan satu judul proyek, konsep/tujuan, keputusan yang disetujui, perkembangan, dan hal yang belum diputuskan. Gabungkan rangkuman yang sudah ada dengan informasi baru; pertahankan rincian, angka dan catatan manual yang masih berlaku. Gunakan pertanyaan beserta jawaban GM untuk memahami jawaban singkat seperti "iya"; keputusan terbaru menggantikan yang lama hanya bila jelas disetujui user. Bukan salinan riwayat chat atau daftar timestamp. Jangan masukkan tes koneksi, preferensi komunikasi global, saran yang belum disetujui sebagai keputusan, atau klaim implementasi terverifikasi tanpa bukti. Jika konteks kurang, pertahankan fakta lama dan nyatakan ketidakpastian. Jika needsUser/disagreement=true atau tidak ada perubahan proyek, jangan sertakan projectMemory. Gunakan bahasa dokumen yang sudah ada kecuali user meminta menggantinya. Aplikasi memeriksa revisi agar edit user atau sesi lain tidak tertimpa.':'Jangan sertakan field projectMemory: ringkasan resmi hanya boleh diperbarui Project Manager dan hanya saat sinkronisasi memori diaktifkan.',
+      !this.summaryManaged?.()&&run.syncMemory&&(!run.governance?.managerId||agent===run.governance.managerId)?'PEMBARUAN RANGKUMAN PROJECT MEMORY: Jika diskusi memuat konsep, keputusan, koreksi, atau perkembangan proyek, tambahkan field projectMemory di JSON checkpoint yang SAMA: {"baseRevision":'+run.projectMemory?.soul.revision+',"content":"dokumen Markdown lengkap hasil penggabungan"}. Field summary pendek hanya catatan aktivitas dan TIDAK memperbarui rangkuman utama. content harus berupa rangkuman proyek utuh (maksimal '+(run.projectMemory?.soul.maxCharacters||18000)+' karakter; tetap seringkas yang diperlukan), dengan satu judul proyek, konsep/tujuan, keputusan yang disetujui, perkembangan, dan hal yang belum diputuskan. Gabungkan rangkuman yang sudah ada dengan informasi baru; pertahankan rincian, angka dan catatan manual yang masih berlaku. Gunakan pertanyaan beserta jawaban GM untuk memahami jawaban singkat seperti "iya"; keputusan terbaru menggantikan yang lama hanya bila jelas disetujui user. Bukan salinan riwayat chat atau daftar timestamp. Jangan masukkan tes koneksi, preferensi komunikasi global, saran yang belum disetujui sebagai keputusan, atau klaim implementasi terverifikasi tanpa bukti. Jika konteks kurang, pertahankan fakta lama dan nyatakan ketidakpastian. Jika needsUser/disagreement=true atau tidak ada perubahan proyek, jangan sertakan projectMemory. Gunakan bahasa dokumen yang sudah ada kecuali user meminta menggantinya. Aplikasi memeriksa revisi agar edit user atau sesi lain tidak tertimpa.':this.summaryManaged?.()?'Jangan sertakan projectMemory. Rangkuman inti diperbarui terpisah oleh agent yang dipilih user melalui kontrol Project Memory; summary checkpoint ini hanya catatan aktivitas.':'Jangan sertakan field projectMemory: ringkasan resmi hanya boleh diperbarui Project Manager dan hanya saat sinkronisasi memori diaktifkan.',
       run.linkedApps?.[agent]?.transport==='remote-app'?'Khusus renderer Antigravity App: taruh checkpoint <pitlane>JSON</pitlane> secara literal pada baris terakhir di dalam SATU blok kode plaintext. Tag harus tetap terlihat sebagai teks literal, bukan HTML, agar penghubung dapat membaca metadata. Teks balasan biasa ditulis sebelum blok tersebut.':'',
     ].join('\n\n');
+  }
+  nativeContext(agent,run){
+    return {agent,sessionId:this.sessionId,projectId:run.governance?.projectId||this.sessionId,
+      profile:{agent:{id:agent,name:this.agentProfiles[agent]?.name||this.agents[agent]?.name||agent,role:this.agentProfiles[agent]?.role||'',bio:this.agentProfiles[agent]?.bio||''},user:run.brain?.preferences?.displayName||'User'},
+      governance:{managerId:run.governance?.managerId||null,pendingDecision:run.governance?.pendingDecision||null},
+      decisions:run.governance?.decisions||[],managerId:run.governance?.managerId,
+      soul:run.brain?.soul.content||'',projectMemory:run.projectMemory?.soul.content||'',projectRevision:run.projectMemory?.soul.revision,projectCharacterLimit:run.projectMemory?.soul.maxCharacters||18000,
+      projectSetup:this.context.slice(0,2500),siblings:run.nativeProjectContext?.rows||[],
+      messages:this.messages.filter(m=>m.status==='done'&&m.kind!=='attendance').map(m=>({id:m.id,role:m.role,text:m.text,status:m.status,attachments:m.attachments})),
+      images:run.images||[],documents:run.documents||[],round:run.round,mode:run.mode,language:run.language,syncMemory:run.syncMemory,summaryManaged:this.summaryManaged?.()};
   }
   async execute(run) {
     const targets = run.targets;
@@ -163,7 +176,7 @@ export class Room extends EventEmitter {
         this.lastDelivery[agent] = { at: new Date().toISOString(), messageCount: this.messages.filter(m => m.status === 'done').length };
         this.changed();
         try {
-          const output = await this.runner(agent, prompt, { nativeLink:run.linkedApps[agent], sessionId:this.sessionId, mode:run.mode, selection, images:run.images || [], signal: run.controller.signal, onDelta: text => { if (!run.controller.signal.aborted && run.mode!=='attendance') { message.text = visibleReply(text); this.changed(false); } } });
+          const output = await this.runner(agent, prompt, { nativeLink:run.linkedApps[agent], nativeContext:run.linkedApps[agent]&&run.mode!=='attendance'?this.nativeContext(agent,run):null,nativeResponseId:message.id, sessionId:this.sessionId, mode:run.mode, selection, images:run.images || [], signal: run.controller.signal, onDelta: text => { if (!run.controller.signal.aborted && run.mode!=='attendance') { message.text = visibleReply(text); this.changed(false); } } });
           if (run.controller.signal.aborted) { message.status = 'stopped'; this.changed(); return; }
           const reply=typeof output==='string'?output:output.text;
           if(output?.nativeChat){message.nativeChat=output.nativeChat;message.model=output.model||'';message.modelName=output.model||'Native app settings';message.effort='';}
@@ -177,7 +190,8 @@ export class Room extends EventEmitter {
           }
           if(run.mode!=='attendance' && run.syncMemory && (!run.governance?.managerId || agent===run.governance.managerId)){
             const before=run.projectMemory?.soul.revision;
-            const saved=await this.remember('recordCheckpoint',message,parsed.control || {summary:parsed.text.slice(0,260),next:'',reportedProgress:''});
+            const checkpoint=parsed.control || {summary:parsed.text.slice(0,260),next:'',reportedProgress:''};
+            const saved=await this.remember('recordCheckpoint',message,this.summaryManaged?.()?{...checkpoint,projectMemory:undefined}:checkpoint);
             // Only refresh after our own summary was accepted, never adopt an
             // unrelated concurrent edit as the base for a stale AI document.
             if(saved?.soul.summarySource?.messageId===message.id&&saved.soul.revision===before+1)run.projectMemory=saved;

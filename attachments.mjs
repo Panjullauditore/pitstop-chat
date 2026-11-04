@@ -106,7 +106,7 @@ export class AttachmentStore {
       if (record.kind === 'image') images.push({ id: record.id, name: record.name, path: join(this.directory, record.id, 'vision.jpg'), mimeType: 'image/jpeg' });
       else {
         const content = record.text.slice(0, Math.max(0, budget)); budget -= content.length;
-        documents.push({ name: record.name, text: content, truncated: record.truncated || content.length < record.text.length, notice: record.notice });
+        documents.push({ id: record.id, name: record.name, text: content, truncated: record.truncated || content.length < record.text.length, notice: record.notice });
       }
     }
     return { images, documents };

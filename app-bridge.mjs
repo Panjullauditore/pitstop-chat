@@ -11,7 +11,7 @@ export function appRemoteUrl(value,chatId){
 }
 const baseUrl=value=>{const url=new URL(value);return url.origin+url.pathname.replace(/\/$/,'');};
 export class NativeAppBridge extends ExtensionBridge{
-  constructor(options){super({...options,grantFile:'antigravity-app-bridge.json',timeout:options.timeout||600000});this.targets=[];this.verify=options.verify||nativeAntigravityFile;}
+  constructor(options){super({...options,heartbeatTimeout:45000,grantFile:'antigravity-app-bridge.json',timeout:options.timeout||600000});this.targets=[];this.verify=options.verify||nativeAntigravityFile;}
   snapshot(){const state=super.snapshot();return {...state,detail:state.status==='unpaired'?'Pair Pitlane Bridge in the Chrome profile signed in to Antigravity App.':state.status==='disconnected'?'Keep Antigravity Remote Control open in the paired Chrome profile. '+(this.diagnostic||''):state.status==='busy'?'Antigravity App is handling the Pitlane task.':'Antigravity App Remote Control is ready.',targets:this.targets||[]};}
   poll({ready=false,targets=[],activeJobId=null,diagnostic=''}={}){
     this.diagnostic=typeof diagnostic==='string'?diagnostic.slice(0,300):'';

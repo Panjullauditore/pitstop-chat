@@ -25,6 +25,9 @@ import {
 import { formatJakartaDate } from "@/lib/utils";
 import { BrandLogo } from "@/components/room/BrandLogo";
 import { Sidebar } from "@/components/room/Sidebar";
+import {WorkspaceClock,MemoryUpdateReminder} from "@/components/room/WorkspaceClock";
+import {quotaWarningKey} from '@/lib/memory-reminders.mjs';
+import {useDownloadConfirmation,downloadFile} from '@/components/room/DownloadConfirmation';
 import { TeamPanel } from "@/components/room/TeamPanel";
 import { MessageSearch } from "@/components/room/MessageSearch";
 import { ChatMessages } from "@/components/room/ChatMessages";
@@ -50,12 +53,14 @@ import {
   Database,
   Brain,
   PanelRight,
+  X,
 } from "lucide-react";
 import {useI18n} from "@/lib/i18n";
 import { toast } from "sonner";
 
 export default function PitstopPage() {
   const {t,setLanguage}=useI18n();
+  const confirmDownload=useDownloadConfirmation();
   const [searchTarget,setSearchTarget] = useState<{messageId:string;query:string;nonce:number}|null>(null);
   const [token, setToken] = useState("");
   const [roomState, setRoomState] = useState<RoomSnapshot | null>(null);
@@ -207,12 +212,14 @@ export default function PitstopPage() {
   }, [token, applySnapshot]);
 
   // Quota warnings calculation (<= 5%)
+  const [dismissedQuotaWarnings,setDismissedQuotaWarnings]=useState<string[]>([]);
   const quotaWarnings = useMemo(() => {
     return Object.values(roomState?.quota || {}).flatMap(
       (status) => status.warnings || []
     );
   }, [roomState?.quota]);
 
+  const visibleQuotaWarnings=quotaWarnings.filter(warning=>!dismissedQuotaWarnings.includes(quotaWarningKey(warning)));
   const displayMessages = roomState?.messages || [];
   const activeProject=roomState?.projects?.find(p=>p.id===activeSession?.projectId);
   const projectName = roomState?.projects?.find(p=>p.id===activeSession?.projectId)?.name || t("Chat di luar proyek");
@@ -251,6 +258,7 @@ export default function PitstopPage() {
         onClose={() => setSidebarOpen(false)}
         sessions={sessions}
         activeSessionId={activeSessionId}
+        activeProjectId={roomState?.activeProjectId}
         onSelectSession={handleSelectSession}
         onDeleteSession={handleDeleteSession}
         onRenameSession={handleRenameSession}
@@ -274,24 +282,25 @@ export default function PitstopPage() {
           <div className="flex items-center gap-3 min-w-0 flex-1">
             {!sidebarOpen&&<button type="button" onClick={()=>setSidebarOpen(true)} className="lg:hidden h-9 w-9 rounded-lg hover:bg-secondary flex items-center justify-center shrink-0" aria-label={t("Buka navigasi")}><Menu className="w-4 h-4"/></button>}
             <div className="min-w-0"><div className="mb-1 flex items-center gap-2 font-mono text-[9px] uppercase tracking-wide"><span className="text-primary shrink-0">Pitstop /</span><span className="text-muted-foreground truncate" title={projectName}>{activeSession?.projectId?projectName:'Workspace'}</span></div><h1 className="text-base sm:text-lg font-display font-bold truncate" title={activeSession?.title}>{activeSession?.title||'New Chat'}</h1></div>
-            <span className={`hidden min-[1500px]:inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono text-[9px] uppercase ${online?'border-brand-lime/30 bg-brand-lime/5 text-brand-lime':'border-border text-muted-foreground'}`}><span className={`h-1.5 w-1.5 rounded-full ${online?'bg-brand-lime':'bg-muted-foreground'}`}/>{online?'Live':t("Menyambungkan ke Pitstop…")}</span>
+            <WorkspaceClock online={online}/>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <span className="lg:hidden"><MessageSearch sessions={sessions} onSelect={handleSearchSelect} compact/></span>
             <Button variant="ghost" size="sm" onClick={()=>{setMemoryTab('project');setSoulDialogOpen(true);}} className="h-10 gap-2 px-2.5 border border-border bg-secondary" aria-label={t("Buka Project Memory")} title="Project Memory"><Brain className="w-4 h-4"/><span className="hidden min-[1400px]:inline text-[10px] font-mono uppercase">Project Memory</span></Button>
             <Button variant="ghost" size="sm" onClick={()=>setTeamPanelOpen(value=>!value)} className="h-10 gap-2 px-2.5 border border-border bg-secondary" aria-label={teamPanelOpen?t("Tutup tim"):t("Buka tim")} aria-pressed={teamPanelOpen} title={t("Panel tim")}><Users className="w-4 h-4"/><span className="hidden sm:inline text-xs">{t("Tim")}</span></Button>
-            <Button variant="ghost" size="sm" disabled={!token} onClick={()=>{window.location.href=`/api/export?token=${encodeURIComponent(token)}`;}} className="h-9 w-9 p-0" aria-label={t("Unduh percakapan")} title={t("Unduh percakapan")}><Download className="w-4 h-4"/></Button>
+            <Button variant="ghost" size="sm" disabled={!token} onClick={()=>confirmDownload({filename:'pitstop-chat.json',run:()=>downloadFile(`/api/export?token=${encodeURIComponent(token)}`,'pitstop-chat.json')})} className="h-9 w-9 p-0" aria-label={t("Unduh percakapan")} title={t("Unduh percakapan")}><Download className="w-4 h-4"/></Button>
           </div>
         </header>
 
+        <MemoryUpdateReminder scopeId={roomState?.projectMemory?.scopeId} pending={Boolean(roomState?.projectMemory?.summary?.pendingMessages)} running={roomState?.projectMemory?.summary?.status==='running'} onOpen={()=>{setMemoryTab('project');setSoulDialogOpen(true);}}/>
         {/* Low Quota Warning Alert (<= 5%) */}
-        {quotaWarnings.length > 0 && (
+        {visibleQuotaWarnings.length > 0 && (
           <div className="mx-4 sm:mx-6 mt-3 p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs space-y-1 shrink-0">
             <div className="flex items-center gap-1.5 font-bold">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>{t("Peringatan Limit Kuota Agent (Sisa ≤ 5%):")}</span>
+              <span className="flex-1">{t("Peringatan Limit Kuota Agent (Sisa ≤ 5%):")}</span><button type="button" className="shrink-0 rounded p-1 hover:bg-amber-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={t("Tutup peringatan kuota")} onClick={()=>setDismissedQuotaWarnings(old=>[...new Set([...old,...visibleQuotaWarnings.map(quotaWarningKey)])])}><X className="h-4 w-4"/></button>
             </div>
-            {quotaWarnings.map((warn, wIdx) => {
+            {visibleQuotaWarnings.map((warn, wIdx) => {
               const rem = new Intl.NumberFormat("id-ID", {
                 maximumFractionDigits: 1,
               }).format(warn.remainingPercent);
@@ -345,6 +354,7 @@ export default function PitstopPage() {
 
       {/* 3. Panel Tim di Kanan (Collapsible on Desktop, Drawer on Mobile) */}
       <TeamPanel linkedApps={activeProject?.linkedApps}
+        onConnectionsChecked={(sessionId,agents)=>setRoomState(previous=>previous?.sessionId===sessionId?{...previous,agents}:previous)}
         managerId={activeProject?.managerId}
         onOpen={()=>setTeamPanelOpen(true)}
         onOpenAgentProfile={setProfileAgent}
@@ -381,6 +391,7 @@ export default function PitstopPage() {
 
       {/* 2-Tier Soul Memory Drawer (Stitch Architecture) */}
       <SoulMemoryDrawer
+        agents={allAgents}
         projectMemory={roomState?.projectMemory}
         initialKind={memoryTab}
         key={activeSessionId}

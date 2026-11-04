@@ -5,7 +5,7 @@ export async function runLinkedApp(provider,link,prompt,options,{definitions,run
   if(!validChatId(link?.id))throw new Error('The linked app chat ID is invalid. Re-link the chat.');
   await validateWorkspace(link.cwd);
   const input='[Message sent through Pitlane. The following includes the user request and Pitlane communication/project context.]\n\n'+prompt;
-  if(provider==='codex')return runCodex(definitions.codex,link,input,options);
+  if(provider==='codex')return runCodex(definitions.codex,link,input,{...options,transport:options.codexTransport||'shared'});
   if(provider!=='antigravity'||link.source!=='antigravity')throw new Error('Native app history is unsupported for this chat source.');
   if(link.transport==='remote-app'){
     if(!runNativeApp)throw new Error('Antigravity App bridge is not connected. Open Remote Control in the Chrome profile paired with Pitlane Bridge. The CLI cannot control this native App chat; no CLI copy was started.');

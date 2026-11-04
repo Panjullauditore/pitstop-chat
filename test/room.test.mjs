@@ -22,6 +22,21 @@ test('both agents get shared context, and second gets the first response', async
   assert.match(calls[1].prompt,/Tiga bay sejajar/); assert.equal(room.messages.length,3);
 });
 
+test('live browser connection overrides a cached connected account and quota',async t=>{
+  const room=await fixture(t,async()=> 'OK');
+  room.agents={...room.agents,deepseek:{id:'deepseek',name:'DeepSeek',installed:true,transport:'browser-web'}};
+  room.accounts.deepseek={connected:true};room.quota.deepseek={status:'ok'};
+  let connected=true;
+  room.getBrowserConnection=id=>id==='deepseek'?{connected,error:connected?'Bridge ready':'Bridge disconnected'}:null;
+  assert.equal(room.snapshot().agents.find(a=>a.id==='deepseek').connection,'connected');
+  connected=false;
+  const deepseek=room.snapshot().agents.find(a=>a.id==='deepseek');
+  assert.equal(deepseek.connection,'disconnected');assert.equal(deepseek.connectionDetail,'Bridge disconnected');
+  const calls=[];room.runner=async agent=>{calls.push(agent);return 'OK';};
+  await room.send({text:'Only connected agents',mode:'discussion'});await room.run?.done;
+  assert.ok(!calls.includes('deepseek'));
+});
+
 test('native App task policy permits explicit user work while keeping automated follow-ups and attendance as discussion',async t=>{
   const calls=[];
   const room=await fixture(t,async(agent,prompt)=>{calls.push({agent,prompt});return 'Reply\n<pitlane>'+JSON.stringify({continue:calls.length<3,needsUser:false})+'</pitlane>';});

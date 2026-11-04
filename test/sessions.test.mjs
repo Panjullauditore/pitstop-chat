@@ -33,7 +33,7 @@ test('linked app chats persist per project, cannot be shared across projects or 
   await store.linkedResult(store.activeId,'codex','wrong-id',{state:'saved'});assert.equal(store.projects[0].linkedApps.codex.state,'linked');
   await store.linkedResult(store.activeId,'codex',link.id,{state:'saved'});
   await store.createProject({name:'Other',agentIds:['codex']});const other=store.projects[1].id;
-  assert.deepEqual(store.room.getLinkedApps(),{});await assert.rejects(store.setLinkedApps(other,{codex:link}),/another Pitlane project/);
+  assert.deepEqual(store.room.getLinkedApps(),{});await assert.rejects(store.setLinkedApps(other,{codex:link}),/another project/);
   const reloaded=new SessionStore(options);await reloaded.load();assert.equal(reloaded.projects[0].linkedApps.codex.state,'saved');
   await store.setLinkedApps(first,{});assert.deepEqual(store.projects[0].linkedApps,{});await store.setLinkedApps(other,{codex:link});
   for(const room of reloaded.rooms.values()){await room.save();await room.brain.queue;}

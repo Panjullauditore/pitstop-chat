@@ -1,4 +1,16 @@
+## Direct connection from Pitstop (v1.3.0)
+
+Open http://127.0.0.1:4317 and the signed-in agent page in the same Chrome profile. In Settings → Extensions & Bridge, click Connect directly. A local top-level content script delivers the authenticated one-time pairing code to the selected service worker; it never returns a saved grant to the page. The worker checks that this profile has a ready agent tab before replacing its pairing. Wrong origins, frames, services, or unready profiles are rejected. Codes in the popup remain a fallback.
+
+After updating to v1.3.0, Reload the extension and refresh Pitstop once to install the local-page connector. Existing pairings survive and reconnect automatically. Antigravity still uses Remote Control and the linked native App chat; this feature does not turn its CLI into the App server.
+
 # Pitlane Bridge
+
+## Persistent DeepSeek chats (v1.2.0)
+
+In Pitstop open the project's **Linked App Chat → DeepSeek**, paste the full URL of an existing conversation, and save. The worker reuses that exact conversation tab (or opens its URL if it is closed). It never starts a replacement conversation or closes the linked tab after a turn. A draft or an active response blocks submission instead of overwriting or interrupting human work. Stop only targets the bridge's own submitted task.
+
+The backend requires the persistent-chat capability before giving a linked job to the extension. Reload v1.2.0 and refresh DeepSeek after updating; older workers cannot silently create a fresh chat for these jobs. The original fresh-chat mode remains available when no conversation is linked. Request and conversation IDs must both match before a response is accepted.
 
 Connect local Pitlane to DeepSeek and the original Antigravity App through its official Remote Control UI. This is a separate extension from Codex's browser extension.
 
@@ -14,6 +26,10 @@ Connect local Pitlane to DeepSeek and the original Antigravity App through its o
 
 Chrome and the Pitlane backend must remain running. The backend uses port 4318. The extension wakes itself using Chrome alarms and polls the backend while connected; Codex does not need to remain active.
 
+Version 1.1.5 probes the actual DeepSeek page even during active jobs. A stored job is not proof of a live bridge. A not-ready page marks the bot disconnected on the next poll; a missing extension heartbeat expires after 12 seconds. Reload the unpacked extension and refresh DeepSeek once to load this update. Pairing is preserved.
+
+Version 1.1.6 also reads the rendered answer if DeepSeek's network client bypasses the page hook. This fallback runs only in the bridge-owned fresh tab, after finding the exact submitted prompt, and reads `.ds-assistant-message-main-content` rather than thought content. It streams answer text and requires the final toolbar, an idle send control, and two seconds of stable text before accepting completion. It never imports older chats or resends a prompt automatically.
+
 ## Access and credentials
 
 - Host access: `https://chat.deepseek.com/*`, `https://antigravity.google.com/*`, `https://antigravity.static.usercontent.goog/*`, and `http://127.0.0.1/*` (the code contacts only `127.0.0.1:4318`).
@@ -26,7 +42,7 @@ Chrome and the Pitlane backend must remain running. The backend uses port 4318. 
 
 For each request, a temporary tab is opened in the same signed-in Chrome profile. Pitlane's assembled prompt (including the selected Soul Memory, Project Memory, decisions, and transcript) is entered there. The page's own send control and network request are used; no internal API request is manufactured with a copied account token.
 
-The page hook reads the response stream for that exact prompt and forwards it to local Pitlane. Only answer fragments are displayed. A completed stream is required; errors, interrupted streams, unsupported formats, and expired request IDs fail closed. The temporary tab closes when the job ends or is cancelled. The original DeepSeek tab stays open. DeepSeek can retain the generated conversation in its own history.
+The page hook reads the response stream for that exact prompt and forwards it to local Pitlane. Only answer fragments are displayed. A completed stream is required; errors, interrupted streams, unsupported formats, and expired request IDs fail closed. In unlinked mode the temporary tab closes when the job ends or is cancelled. A linked persistent conversation tab remains open. The original DeepSeek tab stays open. DeepSeek can retain the generated conversation in its own history.
 
 Images for the current request are fetched from the authenticated local bridge route, uploaded through DeepSeek's page input, and checked for an upload-success response before sending. Unsupported or failed upload stops the request. Other files are included as extracted text by Pitlane.
 

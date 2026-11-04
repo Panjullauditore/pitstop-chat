@@ -5,11 +5,18 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {runLinkedCodex} from '../codex-linked.mjs';
+import {probeSharedCodex,probeCodexConnection,codexConnectionSnapshot} from '../codex-shared.mjs';
 import {runLinkedApp} from '../run-linked-app.mjs';
 import {antigravityChats,listCodexChats,resolveAppLink,validChatId,validateWorkspace,nativeAntigravityFile} from '../linked-apps.mjs';
 import {buildAgentArgs} from '../adapters.mjs';
 
 const id='native-chat-123456';
+test('background shared checks preserve a recent exclusive connection without extending its expiry',()=>{
+ const previous={connected:true,transport:'stdio',checkedAt:'2026-11-03T16:00:00.000Z'},failed={connected:false,transport:'shared',checkedAt:'2026-11-03T16:00:15.000Z'};
+ assert.equal(codexConnectionSnapshot(previous,failed,{now:Date.parse('2026-11-03T16:00:15.000Z')}),previous);
+ assert.equal(codexConnectionSnapshot(previous,failed,{now:Date.parse('2026-11-03T16:00:30.000Z')}),failed);
+ assert.equal(codexConnectionSnapshot(previous,failed,{allowExclusive:true,now:Date.parse('2026-11-03T16:00:15.000Z')}),failed);
+});
 async function fixture(t,mode='success'){
   const cwd=await mkdtemp(join(tmpdir(),'pitlane-linked-'));
   t.after(async()=>{assert.ok(cwd.startsWith(join(tmpdir(),'pitlane-linked-')));await rm(cwd,{recursive:true,force:true});});
@@ -18,20 +25,23 @@ async function fixture(t,mode='success'){
     import {createInterface} from 'node:readline';
     import {appendFileSync} from 'node:fs';
     const mode=${JSON.stringify(mode)},chatId=${JSON.stringify(id)},cwd=${JSON.stringify(cwd)};
+    if(mode.startsWith('exclusive')&&process.argv.includes('proxy'))process.exit(1);
     const send=value=>process.stdout.write(JSON.stringify(value)+'\\n');
     createInterface({input:process.stdin}).on('line',line=>{
       const m=JSON.parse(line);appendFileSync(${JSON.stringify(log)},line+'\\n');
       const reply=result=>send({id:m.id,result});
       if(m.method==='initialize')reply({});
+      if(m.method==='thread/loaded/list')reply({data:mode==='different-server'?[]:[chatId]});
       if(m.method==='thread/list')reply({data:[{id:chatId,name:'Native project chat',cwd,status:{type:'notLoaded'}},{id:'temp',ephemeral:true}],nextCursor:'page-two'});
       if(m.method==='thread/read')reply({thread:{id:chatId,cwd,ephemeral:mode==='ephemeral',status:{type:mode==='busy'?'active':'notLoaded'}}});
       if(m.method==='thread/resume'){
-        if(mode==='owned')return send({id:m.id,error:{code:-32600,message:'thread '+chatId+' already has an active writer'}});
+        if(mode==='owned'||mode==='exclusive-owned')return send({id:m.id,error:{code:-32600,message:'thread '+chatId+' already has an active writer'}});
         reply({model:'native-model',thread:{id:mode==='wrong-thread'?'different':chatId,cwd}});
       }
       if(m.method==='turn/start'){
         reply({turn:{id:'turn-1'}});send({method:'turn/started',params:{threadId:chatId,turn:{id:'turn-1'}}});
         if(mode==='approval')return send({id:999,method:'item/commandExecution/requestApproval',params:{threadId:chatId,turnId:'turn-1'}});
+        if(mode==='foreign-approval')send({id:999,method:'item/commandExecution/requestApproval',params:{threadId:'other-app-thread',turnId:'other-turn'}});
         send({method:'item/agentMessage/delta',params:{threadId:chatId,turnId:'turn-1',delta:'streamed answer'}});
         if(mode==='stop'||mode==='timeout')return;
         send({method:'item/completed',params:{threadId:chatId,turnId:'turn-1',item:{id:'answer-1',type:'agentMessage',phase:'final_answer',text:'Final native answer'}}});
@@ -60,6 +70,49 @@ for(const [mode,pattern] of [['busy',/busy/],['owned',/No message was sent.*shar
   const calls=await f.calls();assert.ok(!calls.some(m=>['thread/start','thread/fork'].includes(m.method)));
   if(['busy','owned','ephemeral','wrong-thread'].includes(mode))assert.ok(!calls.some(m=>m.method==='turn/start'));
   if(mode==='approval'){assert.ok(calls.some(m=>m.id===999&&m.error));assert.ok(!calls.some(m=>m.id===999&&m.result));assert.ok(calls.some(m=>m.method==='turn/interrupt'));}
+});
+
+test('shared Codex attaches through proxy to the selected loaded chat and never launches a second owner',async t=>{
+  const f=await fixture(t);let args=[];
+  const result=await runLinkedCodex(f.definition,f.link,'Forwarded message',{transport:'shared',onChild:child=>{args=child.spawnargs;}});
+  assert.deepEqual(args.slice(-2),['app-server','proxy']);
+  assert.equal(result.nativeChat.id,id);assert.equal(result.text,'Final native answer');
+  const calls=await f.calls();assert.ok(calls.find(m=>m.method==='thread/loaded/list'));
+  assert.ok(!calls.some(m=>['thread/start','thread/fork'].includes(m.method)));
+  const missing=await fixture(t,'different-server');
+  await assert.rejects(runLinkedCodex(missing.definition,missing.link,'Do not send',{transport:'shared'}),/not loaded.*No message was sent/);
+  assert.ok(!(await missing.calls()).some(m=>['thread/resume','turn/start'].includes(m.method)));
+});
+
+test('shared connection probes read metadata without sending messages or taking ownership',async t=>{
+  const f=await fixture(t);const state=await probeSharedCodex(f.definition,f.link);
+  assert.equal(state.connected,true);assert.equal(state.status,'ready');
+  assert.deepEqual((await f.calls()).filter(m=>m.id).map(m=>m.method),['initialize','thread/loaded/list','thread/read']);
+  const missing=await fixture(t,'different-server');assert.equal((await probeSharedCodex(missing.definition,missing.link)).connected,false);
+  assert.equal((await probeSharedCodex({installed:false},f.link)).connected,false);
+});
+
+test('shared connection ignores approvals belonging to another native App thread',async t=>{
+  const f=await fixture(t,'foreign-approval');const result=await runLinkedCodex(f.definition,f.link,'My message',{transport:'shared'});
+  assert.equal(result.text,'Final native answer');assert.ok(!(await f.calls()).some(message=>message.id===999));
+});
+
+test('exclusive fallback checks the exact existing chat and respects the App writer lock',async t=>{
+  const f=await fixture(t,'exclusive');
+  const connection=await probeCodexConnection(f.definition,f.link,{allowExclusive:true});
+  assert.equal(connection.connected,true);assert.equal(connection.transport,'stdio');
+  const calls=await f.calls();assert.ok(calls.some(m=>m.method==='thread/resume'&&m.params.threadId===id));
+  assert.ok(!calls.some(m=>['turn/start','thread/start','thread/fork'].includes(m.method)));
+  const owned=await fixture(t,'exclusive-owned');const blocked=await probeCodexConnection(owned.definition,owned.link,{allowExclusive:true});
+  assert.equal(blocked.connected,false);assert.match(blocked.error,/idle App can still hold/);
+  const result=await runLinkedApp('codex',f.link,'Same history',{codexTransport:connection.transport},{definitions:{codex:f.definition}});
+  assert.equal(result.nativeChat.id,id);assert.equal(result.text,'Final native answer');
+});
+
+test('project Codex forwarding always selects shared transport, never a separate writer',async t=>{
+  const f=await fixture(t);let options;
+  await runLinkedApp('codex',f.link,'Message',{}, {definitions:{codex:f.definition},runCodex:async(_definition,_link,_prompt,settings)=>{options=settings;return {text:'OK'};}});
+  assert.equal(options.transport,'shared');
 });
 
 test('Stop interrupts the same native turn; pre-aborted runs never spawn',async t=>{

@@ -140,3 +140,9 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid
 /* Composition from the supplied Stitch pit-wall preview. */
 .pitstop-transmit { background: linear-gradient(105deg, #FF570F, #F73C21); }
 .pitstop-panel { background: linear-gradient(145deg, #181D28, #10141D); }
+
+/* Live status: a steady core with a compositor-friendly breathing glow. */
+.pitstop-live-dot { position: relative; isolation: isolate; }
+.pitstop-live-dot::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; background: radial-gradient(circle, currentColor 0%, transparent 72%); opacity: .3; pointer-events: none; animation: pitstop-live-glow 2.4s ease-in-out infinite; }
+@keyframes pitstop-live-glow { 0%, 100% { opacity: .2; transform: scale(.85); } 50% { opacity: .45; transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) { .pitstop-live-dot::after { animation: none; opacity: .3; transform: none; } }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import {LanguageProvider} from "@/lib/i18n";
 import { Toaster } from "@/components/ui/sonner";
+import {DownloadConfirmationProvider} from '@/components/room/DownloadConfirmation';
 
 export const metadata: Metadata = {
   icons: {
@@ -27,8 +28,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen bg-background font-sans antialiased text-foreground overflow-hidden">
-        <LanguageProvider>{children}
-        <Toaster position="top-right" richColors /></LanguageProvider>
+        <LanguageProvider><DownloadConfirmationProvider>{children}
+        <Toaster position="top-right" richColors /></DownloadConfirmationProvider></LanguageProvider>
       </body>
     </html>
   );

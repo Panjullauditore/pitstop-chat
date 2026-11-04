@@ -3,6 +3,7 @@ import {join,isAbsolute,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {stat} from 'node:fs/promises';
 import {codexRequest} from './accounts.mjs';
+import {deepseekChat} from './deepseek-chat.mjs';
 
 export const validChatId=id=>typeof id==='string'&&/^[a-zA-Z0-9][a-zA-Z0-9_-]{7,127}$/.test(id);
 export async function listCodexChats(definition,{query='',cursor=null}={}){
@@ -31,6 +32,7 @@ export async function validateWorkspace(path){
   const cwd=resolve(path);if(!(await stat(cwd)).isDirectory())throw new Error('The project folder is not a directory.');return cwd;
 }
 export async function resolveAppLink(provider,input,{definitions,geminiRoot,workspaceFallback}={}){
+  if(provider==='deepseek'){const chat=deepseekChat(input?.remoteUrl);if(input.id&&input.id!==chat.id)throw new Error('The DeepSeek URL opens a different chat.');return {id:chat.id,title:'DeepSeek project chat',source:'deepseek',transport:'browser-chat',remoteUrl:chat.url,cwd:'',state:'linked',linkedAt:new Date().toISOString()};}
   if(!validChatId(input?.id))throw new Error('Choose a valid native chat ID.');
   if(provider==='codex'){
     const {thread}=await codexRequest(definitions.codex,'thread/read',{threadId:input.id,includeTurns:false});
@@ -46,7 +48,7 @@ export async function resolveAppLink(provider,input,{definitions,geminiRoot,work
     const cwd=await validateWorkspace(item.cwd||input.cwd||workspaceFallback);
     return {id:item.id,title:item.title,cwd,source:item.source,transport:'remote-app',state:'needs-bridge',linkedAt:new Date().toISOString()};
   }
-  throw new Error('Only Codex and Antigravity support Linked App Chat.');
+  throw new Error('Choose Codex, Antigravity, or DeepSeek.');
 }
 export async function nativeAntigravityFile(link,{root=join(homedir(),'.gemini'),input,reply,afterIndex=-1}={}){
   if(link.source!=='antigravity'||!validChatId(link.id))throw new Error('Invalid native Antigravity chat.');

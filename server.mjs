@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { readFile, mkdir, writeFile, rename } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, rename, stat } from 'node:fs/promises';
+import {homedir} from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detectAgents, runAgent } from './adapters.mjs';
@@ -16,6 +17,11 @@ import { accountIdentity, codexRequest, readClaudeAccount } from './accounts.mjs
 import { codexModels, antigravityModels, validateSelections } from './models.mjs';
 import { createQuotaService,quotaWarnings } from './quota.mjs';
 import {changeSoulLanguage,cliSoulTranslator} from './soul-language.mjs';
+import {buildBridgePackage} from './bridge-package.mjs';
+import {prepareNativeContext} from './native-context.mjs';
+import {parseReply} from './protocol.mjs';
+import {probeCodexConnection,codexConnectionSnapshot} from './codex-shared.mjs';
+import {MemorySummary} from './memory-summary.mjs';
 
 const base = dirname(fileURLToPath(import.meta.url));
 const project = dirname(base);
@@ -48,6 +54,12 @@ let catalog = {};
 try { catalog = JSON.parse(await readFile(join(dataDirectory,'models.json'),'utf8')); } catch(error) { if(error.code!=='ENOENT') console.error('Model cache:',error.message); }
 let refreshing = null;
 const quotas=createQuotaService();
+const connectionChecks=new Map();
+function refreshConnection(agent){
+  if(connectionChecks.has(agent))return connectionChecks.get(agent);
+  const check=checkAccount(agent).finally(()=>connectionChecks.delete(agent));
+  connectionChecks.set(agent,check);return check;
+}
 async function refreshModels() {
   if(refreshing)return refreshing;
   Object.assign(definitions,detectAgents());
@@ -65,9 +77,23 @@ async function refreshModels() {
 }
 const sessions = new SessionStore({ directory:dataDirectory, seed:soulSeed, context, agents:definitions, attachments,
   runner:async(agent,prompt,options)=>{
-    if(options.nativeLink&&['codex','antigravity'].includes(agent)){
+    if(options.nativeLink&&['codex','antigravity','deepseek'].includes(agent)){
       const link=options.nativeLink;
-      try{const result=await runLinkedApp(agent,link,prompt,options,{definitions,runNativeApp:(target,input,run)=>appBridge.run(target,input,run)});await sessions.linkedResult(options.sessionId,agent,link.id,{state:'saved',lastSyncedAt:new Date().toISOString(),error:null});return result;}
+      try{
+        const savedLink=sessions.projects.find(p=>p.id===options.nativeContext?.projectId)?.linkedApps?.[agent];
+        let credentialEpoch='';
+        // Observe credential replacement without loading or forwarding token contents.
+        if(agent==='codex'&&process.env.ROOM_SKIP_CLI_CHECKS!=='1')try{const info=await stat(join(process.env.CODEX_HOME||join(homedir(),'.codex'),'auth.json'));credentialEpoch=info.mtimeMs+':'+info.size;}catch{}
+        const identity=(agent==='codex'&&accounts.codex?.email?'codex:'+accounts.codex.email:'unknown-account:'+token)+(agent==='antigravity'?appBridge.grant?.tokenHash||'':agent==='deepseek'?chromeBridge.grant?.tokenHash||'':credentialEpoch);
+        const delivery=options.nativeContext?prepareNativeContext(options.nativeContext,{provider:agent,link,identity,responseId:options.nativeResponseId,previous:savedLink?.id===link.id?savedLink.contextSync:undefined}):null;
+        let codexTransport=options.codexTransport;
+        if(agent==='codex'&&!codexTransport){const connection=await refreshCodexAppConnection(sessions.rooms.get(options.sessionId),{allowExclusive:true});if(!connection?.connected)throw new Error(connection?.error||'Codex App chat is unavailable. No message was sent.');codexTransport=connection.transport;}
+        const runOptions={...options,images:delivery?.images||options.images,codexTransport};
+        const result=agent==='deepseek'?{text:await chromeBridge.run(delivery?.prompt||prompt,{...runOptions,chatUrl:link.remoteUrl}),nativeChat:{provider:'deepseek',id:link.id,title:link.title,history:'saved'}}:await runLinkedApp(agent,link,delivery?.prompt||prompt,runOptions,{definitions,runNativeApp:(target,input,run)=>appBridge.run(target,input,run)});
+        if(options.signal?.aborted)throw new DOMException('Stopped','AbortError');
+        if(delivery){if(result.nativeChat?.id!==link.id||result.nativeChat?.history!=='saved')throw new Error('Native history was not confirmed; context synchronization was not advanced.');parseReply(result.text);}
+        await sessions.linkedResult(options.sessionId,agent,link.id,{state:'saved',lastSyncedAt:new Date().toISOString(),error:null,...(delivery?{contextSync:delivery.receipt}:{})});return result;
+      }
       catch(error){await sessions.linkedResult(options.sessionId,agent,link.id,{state:'error',error:error.message.slice(0,600)});throw error;}
     }
     if(agent==='deepseek'){
@@ -78,8 +104,31 @@ const sessions = new SessionStore({ directory:dataDirectory, seed:soulSeed, cont
   }
 });
 await sessions.load();
-function activate(){room=sessions.room;room.getAppConnection=id=>{const link=room.getLinkedApps?.()[id];if(link?.transport!=='remote-app')return null;const state=appBridge.snapshot();let matches=false;try{matches=state.targets.includes(new URL(link.remoteUrl).origin+new URL(link.remoteUrl).pathname.replace(/\/$/,''));}catch{}return {connected:state.connected&&matches,email:null,checkedAt:state.checkedAt,error:state.detail,app:true};};brain=room.brain;room.accounts=accounts;room.agentProfiles=agentProfiles;}
+const codexAppConnections=new Map();
+const codexAppChecks=new Map();
+async function refreshCodexAppConnection(target=room,{allowExclusive=false}={}){
+  const link=target.getLinkedApps?.().codex;if(!link)return null;
+  const key=link.id+String(allowExclusive);if(codexAppChecks.has(key))return codexAppChecks.get(key);
+  const check=probeCodexConnection(definitions.codex,link,{allowExclusive}).then(state=>{codexAppConnections.set(link.id,codexConnectionSnapshot(codexAppConnections.get(link.id),state,{allowExclusive}));target.changed(false);return state;}).finally(()=>codexAppChecks.delete(key));
+  codexAppChecks.set(key,check);return check;
+}
+function activate(){
+  room=sessions.room;const target=room;
+  target.getAppConnection=id=>{
+    const link=target.getLinkedApps?.()[id];
+    if(id==='codex'&&link){const state=codexAppConnections.get(link.id);return {app:true,connected:state?.connected===true&&Date.now()-Date.parse(state.checkedAt)<30000,email:null,checkedAt:state?.checkedAt||null,error:state?.error||'Shared Codex App connection has not been checked. Use Check connection; CLI login alone does not connect this chat.'};}
+    if(link?.transport!=='remote-app')return null;
+    const state=appBridge.snapshot();let matches=false;try{matches=state.targets.includes(new URL(link.remoteUrl).origin+new URL(link.remoteUrl).pathname.replace(/\/$/,''));}catch{}
+    return {connected:state.connected&&matches,email:null,checkedAt:state.checkedAt,error:state.detail,app:true};
+  };
+  brain=target.brain;target.accounts=accounts;target.agentProfiles=agentProfiles;
+  target.getBrowserConnection=id=>{if(id!=='deepseek')return null;const state=chromeBridge.snapshot(),linked=target.getLinkedApps?.().deepseek,ready=state.connected&&(!linked||state.persistentChatSupported);return {connected:ready,email:null,checkedAt:state.checkedAt,error:linked&&!state.persistentChatSupported?'Persistent chat requires Pitlane Bridge v1.2.0 or newer. Update and Reload the extension, then refresh DeepSeek.':state.detail};};
+}
 activate();
+sessions.summaryService=new MemorySummary(sessions,{beforeRun:async(agent,target)=>{
+  if(agent==='codex'&&target.getLinkedApps?.().codex){const connection=await refreshCodexAppConnection(target,{allowExclusive:true});if(!connection?.connected)throw new Error(connection?.error||'Codex App chat is unavailable. No message was sent.');return {codexTransport:connection.transport};}
+}});
+await sessions.summaryService.cleanup();
 appBridge.on('change',()=>room.changed(false));
 chromeBridge.on('change',state=>{accounts.deepseek={connected:state.connected,email:null,checkedAt:state.checkedAt,error:state.detail};room.changed(false);});
 async function checkAccount(agent){
@@ -124,7 +173,7 @@ async function readBytes(request, limit) {
   for await (const chunk of request) { size += chunk.length; if (size > limit) throw new Error('Upload atau pesan terlalu besar. Ukuran file maksimal 10 MB.'); chunks.push(chunk); }
   return Buffer.concat(chunks);
 }
-async function body(request) { return JSON.parse((await readBytes(request,request.url.startsWith('/api/sessions/import') ? 8000000 : request.url.startsWith('/api/web-agent/reply')?250000:120000)).toString('utf8') || '{}'); }
+async function body(request) { return JSON.parse((await readBytes(request,request.url.startsWith('/api/sessions/import') ? 8000000 : request.url.startsWith('/api/project-memory')||/^\/api\/bridge\/(?:app\/)?event/.test(request.url)?800000:request.url.startsWith('/api/web-agent/reply')?250000:120000)).toString('utf8') || '{}'); }
 let mutation = Promise.resolve();
 function exclusive(action) { const result = mutation.then(action); mutation = result.catch(() => {}); return result; }
 const server = http.createServer(async (request, response) => {
@@ -166,6 +215,24 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && url.pathname === '/api/bootstrap') return json(response, 200, { token, state: sessions.snapshot(), catalog });
     if (url.pathname.startsWith('/api/')) {
       if ((request.headers['x-room-token'] || url.searchParams.get('token')) !== token) return json(response, 403, { error: 'Muat ulang room untuk menyambungkan ulang sesi lokal.' });
+      if(request.method==='GET'&&url.pathname==='/api/extensions/bridge/download'){
+        const {filename,bytes}=await buildBridgePackage(join(base,'extension'));
+        response.writeHead(200,{'Content-Type':'application/zip','Content-Disposition':`attachment; filename="${filename}"`,'Content-Length':bytes.length,'Cache-Control':'no-store'});
+        response.end(bytes);return;
+      }
+      if(request.method==='POST'&&url.pathname.startsWith('/api/project-memory/summary/')){
+        const input=await body(request),action=url.pathname.split('/').at(-1);
+        const result=await mutate(async()=>{
+          if(input.scopeId!==sessions.memoryKey(sessions.activeId))throw new Error('Project changed. Reopen Project Memory before updating.');
+          const service=sessions.summaryService;
+          if(action==='settings')await service.settings(input.scopeId,input);
+          else if(action==='limit')await service.setLimit(input.scopeId,input.maxCharacters);
+          else if(action==='update')service.start(sessions.activeId);
+          else if(action==='stop')service.stop(input.scopeId);
+          else throw new Error('Unknown memory action.');
+          return sessions.memorySnapshot(sessions.activeId);
+        });return json(response,action==='update'?202:200,{projectMemory:result});
+      }
       if(request.method==='GET'&&url.pathname==='/api/linked-apps/chats'){
         const provider=url.searchParams.get('provider'),query=(url.searchParams.get('query')||'').slice(0,120);
         if(!['codex','antigravity'].includes(provider))throw new Error('Choose Codex or Antigravity.');
@@ -173,17 +240,17 @@ const server = http.createServer(async (request, response) => {
         return json(response,200,data);
       }
       if(request.method==='POST'&&url.pathname==='/api/projects/linked-apps'){
-        const input=await body(request);if(!input.links||typeof input.links!=='object'||Array.isArray(input.links)||Object.keys(input.links).some(key=>!['codex','antigravity'].includes(key)))throw new Error('Invalid linked app settings.');
+        const input=await body(request);if(!input.links||typeof input.links!=='object'||Array.isArray(input.links)||Object.keys(input.links).some(key=>!['codex','antigravity','deepseek'].includes(key)))throw new Error('Invalid linked app settings.');
         const state=await mutate(async()=>{
           const project=sessions.projects.find(project=>project.id===input.projectId);if(!project)throw new Error('Project was not found.');
           const workspaceFallback=join(dataDirectory,'agent-workspaces',project.id);
           if(input.links.antigravity)await mkdir(workspaceFallback,{recursive:true});
-          const links={};for(const provider of ['codex','antigravity'])if(input.links[provider])links[provider]=await resolveAppLink(provider,input.links[provider],{definitions,workspaceFallback});
+          const links={};for(const provider of ['codex','antigravity','deepseek'])if(input.links[provider])links[provider]=await resolveAppLink(provider,input.links[provider],{definitions,workspaceFallback});
           if(links.antigravity&&input.links.antigravity.remoteUrl)links.antigravity.remoteUrl=appRemoteUrl(input.links.antigravity.remoteUrl,links.antigravity.id);
           for(const [provider,link] of Object.entries(links)){
             const previous=project.linkedApps?.[provider];
             if(previous&&['id','cwd','source','transport','remoteUrl'].every(key=>previous[key]===link[key])){
-              for(const key of ['state','linkedAt','lastSyncedAt','error'])if(Object.hasOwn(previous,key))link[key]=previous[key];
+              for(const key of ['state','linkedAt','lastSyncedAt','error','contextSync'])if(Object.hasOwn(previous,key))link[key]=previous[key];
             }
           }
           return sessions.setLinkedApps(input.projectId,links);
@@ -229,6 +296,10 @@ const server = http.createServer(async (request, response) => {
           else if(url.pathname==='/api/projects/move')await sessions.moveSession(input.sessionId,input.projectId);
           else if(url.pathname==='/api/projects/session-agents')await sessions.setSessionAgents(input.sessionId,input.agentIds);
           else if(url.pathname==='/api/projects/open')await sessions.openProject(input.projectId);
+          else if(url.pathname==='/api/projects/status'){
+            await sessions.setProjectStatus(input);
+            if(input.status==='active')await sessions.openProject(input.projectId);
+          }
           else if(url.pathname==='/api/projects/delete'){
             if(input.confirmation!=='DELETE')throw new Error('Ketik DELETE untuk mengonfirmasi hapus proyek.');
             await sessions.deleteProject(input.projectId);
@@ -285,8 +356,8 @@ const server = http.createServer(async (request, response) => {
         const controller=new AbortController();
         const cancel=()=>{if(!response.writableEnded)controller.abort();};response.on('close',cancel);
         try{
-          const reply=await chromeBridge.run('Connection test. Reply with exactly: PITLANE_BROWSER_OK',{signal:controller.signal});
-          return json(response,200,{success:reply.trim()==='PITLANE_BROWSER_OK',browser:chromeBridge.snapshot()});
+          const reply=await chromeBridge.run('Connection test. Reply with exactly: PITLANE_BROWSER_OK',{signal:controller.signal,chatUrl:room.getLinkedApps?.().deepseek?.remoteUrl});
+          return json(response,200,{success:parseReply(reply).text==='PITLANE_BROWSER_OK',browser:chromeBridge.snapshot()});
         }finally{response.off('close',cancel);}
       }
       if(request.method==='POST' && url.pathname==='/api/web-agent/browser/close'){
@@ -334,7 +405,7 @@ const server = http.createServer(async (request, response) => {
       }
       if (request.method === 'POST' && url.pathname === '/api/send') {
         const input = await body(request);
-        const result = await mutate(() => room.send(input)); return json(response, 202, result);
+        const result = await mutate(async() => {if(room.getLinkedApps?.().codex)await refreshCodexAppConnection(room,{allowExclusive:true});return room.send(input);}); return json(response, 202, result);
       }
       if (request.method === 'POST' && url.pathname === '/api/stop') {
         await mutate(() => room.stop()); return json(response, 200, { stopped: true });
@@ -342,11 +413,28 @@ const server = http.createServer(async (request, response) => {
       if(request.method==='POST' && url.pathname==='/api/reconnect'){
         const input=await body(request);
         if(!['codex','antigravity','claude'].includes(input.agent))return json(response,400,{error:'Provider tidak dikenal.'});
+        if(input.agent==='codex'&&room.getLinkedApps?.().codex){const state=await refreshCodexAppConnection(room,{allowExclusive:true});return json(response,200,{connected:state.connected,message:state.error,state:sessions.snapshot()});}
         Object.assign(definitions,detectAgents());
         quotas.invalidate(input.agent); room.invalidateAttendance();
         const account=await checkAccount(input.agent);
         if(account.connected)void checkQuota(input.agent,{force:true}).catch(()=>{});
         return json(response,200,{connected:account.connected,message:account.connected?'Akun CLI berhasil diperiksa.':account.error,state:sessions.snapshot()});
+      }
+      if(request.method==='POST'&&url.pathname==='/api/agents/check'){
+        const input=await body(request);
+        if(expectedSession&&expectedSession!==sessions.activeId)throw new Error('Sesi aktif berubah. Muat ulang sebelum memeriksa koneksi.');
+        const target=room,targetId=sessions.activeId;
+        const ids=input.agent===undefined?sessions.enabledAgents(targetId):[input.agent];
+        if(!ids.length||ids.some(id=>!['codex','antigravity','claude','deepseek'].includes(id)))return json(response,400,{error:'Provider tidak dikenal.'});
+        Object.assign(definitions,detectAgents());
+        await Promise.all(ids.map(async id=>{
+          // Remote App readiness comes from its selected device heartbeat, not a separate CLI account.
+          if(id==='codex'&&target.getLinkedApps?.().codex){await refreshCodexAppConnection(target,{allowExclusive:true});return;}
+          if(target.getLinkedApps?.()[id]?.transport==='remote-app'){appBridge.changed();return;}
+          await refreshConnection(id);
+        }));
+        target.changed(false);
+        return json(response,200,{sessionId:targetId,agents:target.snapshot().agents,checkedAt:new Date().toISOString(),browser:chromeBridge.snapshot()});
       }
       if(request.method==='POST' && url.pathname==='/api/models')return json(response,200,{catalog:await refreshModels()});
       if(request.method==='POST' && url.pathname==='/api/attendance'){
@@ -385,11 +473,11 @@ const server = http.createServer(async (request, response) => {
         return json(response,200,{projectMemory:await mutate(async()=>{await sessions.memoryFor(sessions.activeId).pin(room.messages.find(m=>m.id===input.messageId));return sessions.memorySnapshot(sessions.activeId);})});
       }
       if(request.method==='GET' && url.pathname==='/api/brain/export'){
-        response.setHeader('Content-Disposition','attachment; filename="pitlane-memories.json"');
+        response.setHeader('Content-Disposition','attachment; filename="pitstop-memories.json"');
         return json(response,200,{soul:sessions.communication.snapshot().soul,projectMemory:sessions.memorySnapshot(sessions.activeId)});
       }
       if (request.method === 'GET' && url.pathname === '/api/export') {
-        response.setHeader('Content-Disposition', 'attachment; filename="pitlane-chat.json"');
+        response.setHeader('Content-Disposition', 'attachment; filename="pitstop-chat.json"');
         return json(response, 200, { exportedAt: new Date().toISOString(), messages: room.messages, brain:sessions.snapshot().brain, projectMemory:sessions.memorySnapshot(sessions.activeId) });
       }
       return json(response, 404, { error: 'Endpoint tidak ditemukan.' });
@@ -407,7 +495,10 @@ server.listen(port, '127.0.0.1', () => {
   if(process.env.ROOM_SKIP_CLI_CHECKS !== '1'){
     void Promise.allSettled(Object.keys(definitions).map(checkAccount));
     void refreshModels().catch(error=>console.error('Model refresh:',error.message));
+    void refreshCodexAppConnection();
   }
 });
-async function shutdown() { await room.stop(); chromeBridge.close(); appBridge.close(); await deepseekBrowser.close(); await room.save(); await sessions.persist(); for (const client of clients) client.end(); server.close(() => process.exit(0)); }
+const codexAppTimer=setInterval(()=>{if(process.env.ROOM_SKIP_CLI_CHECKS!=='1')void refreshCodexAppConnection();},15000);codexAppTimer.unref();
+const memoryRetentionTimer=setInterval(()=>void sessions.summaryService.cleanup().catch(error=>sessions.emit('storageError',error)),60000);memoryRetentionTimer.unref();
+async function shutdown() {clearInterval(codexAppTimer);clearInterval(memoryRetentionTimer);sessions.summaryService.active?.controller.abort();await sessions.summaryService.active?.done;await sessions.summaryService.cleaning; await room.stop(); chromeBridge.close(); appBridge.close(); await deepseekBrowser.close(); await room.save(); await sessions.persist(); for (const client of clients) client.end(); server.close(() => process.exit(0)); }
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);

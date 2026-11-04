@@ -1,6 +1,6 @@
 interface SoulUsageProps { content: string; revision: number; compact?: boolean }
 
-export function SoulUsage({ content, revision, compact = false }: SoulUsageProps) {
+export function SoulUsage({ content, compact = false }: SoulUsageProps) {
   const core = content.split("<!-- PITLANE_AUTO_MEMORY -->")[0].trim();
   const coreLength = core.length;
   const percent = Math.min(100, Math.round(coreLength / 18000 * 100));
@@ -8,7 +8,7 @@ export function SoulUsage({ content, revision, compact = false }: SoulUsageProps
   return (
     <div className={`space-y-1.5 ${compact ? "text-xs" : "text-xs"}`}>
       <div className="flex justify-between gap-2 text-muted-foreground">
-        <span>Isi inti Soul · v{revision}</span>
+        <span>Isi inti Soul</span>
         <span className="font-mono text-primary font-semibold">{percent}%</span>
       </div>
       <div className="h-1.5 rounded-full bg-secondary overflow-hidden">

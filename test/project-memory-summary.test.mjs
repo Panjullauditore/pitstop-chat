@@ -9,7 +9,7 @@ import {parseReply,AUTO_MARKER} from '../protocol.mjs';
 test('summary protocol validates full documents without silently truncating them',()=>{
   const parse=projectMemory=>parseReply('Reply\n<pitlane>'+JSON.stringify({continue:false,needsUser:false,projectMemory})+'</pitlane>').control;
   assert.deepEqual(parse({baseRevision:3,content:'# Concept'}).projectMemory,{baseRevision:3,content:'# Concept'});
-  for(const memory of [{baseRevision:0,content:'x'},{baseRevision:2,content:' '},{baseRevision:2,content:'x'.repeat(18001)},{baseRevision:2,content:'x'+AUTO_MARKER}])assert.equal(parse(memory).projectMemory,undefined);
+  for(const memory of [{baseRevision:0,content:'x'},{baseRevision:2,content:' '},{baseRevision:2,content:'x'.repeat(100001)},{baseRevision:2,content:'x'+AUTO_MARKER}])assert.equal(parse(memory).projectMemory,undefined);
 });
 
 test('consolidation keeps source decisions and backups; activity-only checkpoints do not pretend to update the core',async t=>{

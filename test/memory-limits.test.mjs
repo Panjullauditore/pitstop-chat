@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {SessionStore} from '../sessions.mjs';
+import {MemorySummary} from '../memory-summary.mjs';
+import {validMemoryLimit} from '../src/lib/memory-limits.mjs';
+
+test('custom project limits persist, stay isolated, guard edits, and drive summarizer validation',async t=>{
+ const directory=await mkdtemp(join(tmpdir(),'pitstop-memory-limits-')),calls=[];
+ let output='# Project\n'+'.'.repeat(24000);
+ const options={directory,seed:'# Initial',agents:{codex:{id:'codex',installed:true}},runner:async(_agent,prompt)=>{calls.push(prompt);return JSON.stringify({content:output});}};
+ const store=new SessionStore(options);await store.load();await store.createProject({name:'Custom',agentIds:['codex']});store.summaryService=new MemorySummary(store);
+ t.after(async()=>{for(const room of store.rooms.values()){await room.stop();await room.save();await room.brain.queue;}for(const memory of store.memories.values())await memory.queue;await store.queue;assert.ok(directory.startsWith(join(tmpdir(),'pitstop-memory-limits-')));await rm(directory,{recursive:true,force:true});});
+ const id=store.activeId,scope=store.memoryKey(id),memory=store.memoryFor(id),service=store.summaryService;
+ assert.equal(memory.characterLimit(),18000);
+ for(const invalid of [undefined,null,999,100001,18000.5,'50000'])await assert.rejects(service.setLimit(scope,invalid));
+ await service.setLimit(scope,100000);assert.equal(store.memorySnapshot(id).maxCharacters,100000);
+ await service.settings(scope,{autoEnabled:false,agentId:'codex'});assert.equal(memory.characterLimit(),100000);
+ await memory.saveSoul('# Large\n'+'漢'.repeat(60000),memory.value.soul.revision);
+ const before=memory.value.soul.content;await assert.rejects(service.setLimit(scope,50000));assert.equal(memory.value.soul.content,before);
+ store.room.messages.push({id:'fact',role:'user',text:'New detail',at:new Date().toISOString(),status:'done'});
+ service.start(id);await service.active.done;assert.equal(service.snapshot(scope).status,'done');assert.match(calls[0],/1–100000 characters/);assert.equal(memory.value.soul.content,output);
+ await service.setLimit(scope,25000);output='# Too large\n'+'.'.repeat(25000);store.room.messages.push({id:'oversized',role:'user',text:'New detail',at:new Date().toISOString(),status:'done'});
+ const coverage=structuredClone(memory.value.soul.summaryCoverage);service.start(id);await service.active.done;assert.equal(service.snapshot(scope).status,'error');assert.deepEqual(memory.value.soul.summaryCoverage,coverage);
+ await store.createProject({name:'Default',agentIds:['codex']});assert.equal(store.memorySnapshot(store.activeId).maxCharacters,18000);
+ const reload=new SessionStore(options);await reload.load();assert.equal(reload.memorySnapshot(id).maxCharacters,25000);
+ assert.equal(validMemoryLimit(100000),true);assert.equal(validMemoryLimit(100001),false);
+});
