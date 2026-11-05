@@ -57,13 +57,23 @@ enableReadingProgress();
 
 const steps = [...document.querySelectorAll('[data-step]')];
 const room = document.querySelector('#room-body');
+const agentOptions = [...document.querySelectorAll('[data-agent]')];
+const memoryStatus = document.querySelector('#workflow-memory-status');
+const agentReplies = {
+  codex: ['CX', 'Build the first version as a single page. Put the product introduction first, followed by one interactive walkthrough.'],
+  gemini: ['GE', 'Make the walkthrough the visual focus. A visitor should be able to try one example without leaving the page.'],
+  cowork: ['CW', 'For the first release, agree on two deliverables: a clear introduction and one interactive example. Put the rest in the backlog.'],
+  deepseek: ['DS', 'A feature list alone may leave people guessing. Use one concrete example to show how a project goes from brief to decision.'],
+  custom: ['RR', 'Before release, check that a first-time visitor can understand the product and complete the example on a phone.'],
+};
+let selectedAgent = agentOptions[0];
 const scenes = [
   {
     messages: [['You','Y','owner','Let’s plan the first version of our product site. Visitors should understand what we do and see an example before they leave.']],
     note: 'Next: invite the agents you want in this session.'
   },
   {
-    messages: [['Planning agent','P','','Start with a short introduction, then show one project from brief to decision.'],['Research agent','R','research','Use a sample conversation so visitors can see what each agent contributes.'],['You','Y','owner','Agreed. Let’s use one example and keep the page focused on the product.']],
+    messages: [['You','Y','owner','Let’s use one example and keep the first release focused on the product.']],
     note: 'The team has a direction. Save it so the next session can use it.'
   },
   {
@@ -76,7 +86,13 @@ function showScene(index) {
   const scene = scenes[index];
   if (!scene) return;
   steps.forEach((button, i) => button.setAttribute('aria-pressed', String(i === index)));
-  const nodes = scene.messages.map(([name, initial, style, message]) => {
+  memoryStatus.textContent = scene.saved ? 'Decision saved in this demo' : 'Awaiting a decision';
+  const messages = [...scene.messages];
+  if (index === 1) {
+    const [initial, reply] = agentReplies[selectedAgent.dataset.agent];
+    messages.unshift([selectedAgent.querySelector('strong').textContent, initial, 'research', reply]);
+  }
+  const nodes = messages.map(([name, initial, style, message]) => {
     const item = document.createElement('div');
     item.className = 'message';
     const badge = document.createElement('span');
@@ -100,6 +116,11 @@ function showScene(index) {
   reveal(note, 280, nodes.length * 55);
 }
 steps.forEach((button, i) => button.addEventListener('click', () => showScene(i)));
+agentOptions.forEach(button => button.addEventListener('click', () => {
+  selectedAgent = button;
+  agentOptions.forEach(option => option.setAttribute('aria-pressed', String(option === button)));
+  showScene(1);
+}));
 
 
 const map = document.querySelector('#collaboration-map');

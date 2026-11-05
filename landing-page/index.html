@@ -70,13 +70,20 @@
 </section>
 <section class="story" id="walkthrough" aria-labelledby="story-title">
 <div class="wrap">
-<div class="story-head"><h2 id="story-title" data-scroll-reveal>From brief to decision.</h2><p data-scroll-reveal>Follow a sample project as the team goes from an open question to a decision it can reuse.</p></div>
-<div class="walk">
-<div class="steps" aria-label="Walkthrough steps">
-<button type="button" aria-pressed="true" data-step="0"><span>01</span><span><strong>Set the brief</strong><small>Give the project a goal.</small></span></button>
-<button type="button" aria-pressed="false" data-step="1"><span>02</span><span><strong>Bring in the team</strong><small>Ask agents for different perspectives.</small></span></button>
-<button type="button" aria-pressed="false" data-step="2"><span>03</span><span><strong>Keep the decision</strong><small>Save the outcome to Project Memory.</small></span></button>
+<div class="story-head"><h2 id="story-title" data-scroll-reveal>From brief to decision.</h2><p data-scroll-reveal>Pick an agent to see how it contributes to a shared project. Then save the decision to Project Memory in this interactive demo.</p></div>
+<div class="walk workflow">
+<div class="workflow-agents">
+  <h3>Agents you can add</h3>
+  <div class="agent-options" role="group" aria-label="Example agents">
+    <button type="button" data-agent="codex" aria-pressed="true" aria-controls="room-body"><span class="agent-mark" aria-hidden="true">CX</span><span><strong>Codex / ChatGPT</strong><small>Implementation</small></span></button>
+    <button type="button" data-agent="gemini" aria-pressed="false" aria-controls="room-body"><span class="agent-mark" aria-hidden="true">GE</span><span><strong>Gemini / Antigravity</strong><small>Design exploration</small></span></button>
+    <button type="button" data-agent="cowork" aria-pressed="false" aria-controls="room-body"><span class="agent-mark" aria-hidden="true">CW</span><span><strong>Codex / Cowork</strong><small>Project planning</small></span></button>
+    <button type="button" data-agent="deepseek" aria-pressed="false" aria-controls="room-body"><span class="agent-mark" aria-hidden="true">DS</span><span><strong>DeepSeek</strong><small>Second opinion</small></span></button>
+    <button type="button" data-agent="custom" aria-pressed="false" aria-controls="room-body"><span class="agent-mark" aria-hidden="true">+</span><span><strong>Custom Agent</strong><small>Example: release reviewer</small></span></button>
+  </div>
 </div>
+<div class="workflow-room">
+<h3>Shared project room</h3>
 <div class="room" aria-live="polite" aria-atomic="true">
 <div class="room-bar"><img src="assets/pitstop-symbol.png" alt="" width="25" height="25"><strong>Website launch</strong><span>Example session</span></div>
 <div class="room-body" id="room-body">
@@ -84,6 +91,18 @@
 <div class="room-note">Next: invite the agents you want in this session.</div>
 </div>
 </div>
+</div>
+<div class="workflow-memory">
+  <h3>Project Memory</h3>
+  <svg aria-hidden="true" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 4h13l5 5v19H8zM21 4v6h5M12 15h10m-10 5h10m-10 4h6"/></svg>
+  <strong id="workflow-memory-status">Awaiting a decision</strong>
+  <p>Keep the scope you agree on so the next session can pick up from there.</p>
+</div>
+</div>
+<div class="steps" aria-label="Walkthrough steps">
+  <button type="button" aria-pressed="true" data-step="0"><span>01</span><span><strong>Set the brief</strong><small>Give the project a goal.</small></span></button>
+  <button type="button" aria-pressed="false" data-step="1"><span>02</span><span><strong>Ask an agent</strong><small>Bring another perspective into the room.</small></span></button>
+  <button type="button" aria-pressed="false" data-step="2"><span>03</span><span><strong>Save the decision</strong><small>Keep the agreed scope in Project Memory.</small></span></button>
 </div>
 </div>
 </section>
