@@ -15,6 +15,7 @@
 <title>Pitstop Chat — Multiple Minds. One Team. One Goal.</title>
 </head>
 <body>
+<div class="reading-progress" aria-hidden="true"></div>
 <a class="skip" href="#main">Skip to content</a>
 <header class="top"><div class="wrap header">
 <a class="brand" href="#top"><img src="assets/pitstop-symbol.png" width="34" height="34" alt=""><span>Pitstop<span class="brand-chat"> Chat</span></span></a>
@@ -23,8 +24,8 @@
 <main id="main">
 <section class="wrap hero" aria-labelledby="tagline">
 <div class="hero-copy">
-<h1 id="tagline">Multiple Minds.<br>One Team.<br><span>One Goal.</span></h1>
-<p>Pitstop Chat is a shared workspace for you and your AI agents. Bring different perspectives into the same conversation and keep decisions with the project they belong to.</p>
+<h1 id="tagline" data-scroll-reveal>Multiple Minds.<br>One Team.<br><span>One Goal.</span></h1>
+<p data-scroll-reveal>Pitstop Chat is a shared workspace for you and your AI agents. Bring different perspectives into the same conversation and keep decisions with the project they belong to.</p>
 <a class="action" href="#walkthrough">Explore the workspace <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
 </div>
 <figure class="mark" aria-label="Interactive Pitstop collaboration map">
@@ -43,26 +44,32 @@
   <use class="route route-memory" href="#route-memory"/>
   <use class="signal-trace" href="#route-you"/>
   <circle class="signal-packet" r="5"/>
+  <line class="drag-tether" x2="250" y2="250"/>
 </svg>
-<img src="assets/pitstop-symbol.png" width="1254" height="1254" alt="The Pitstop collaboration knot in orange, blue and cyan">
-<div class="map-controls" aria-label="Explore the collaboration map">
+<button class="logo-spin" type="button" aria-label="Spin the Pitstop logo">
+  <img src="assets/pitstop-symbol.png" width="1254" height="1254" alt="" draggable="false">
+</button>
+<div class="map-controls" role="group" aria-label="Explore the collaboration map" aria-describedby="map-hint">
   <button class="map-node node-you" type="button" data-map="you" aria-pressed="true" aria-controls="map-description"><span></span>You</button>
   <button class="map-node node-agents" type="button" data-map="agents" aria-pressed="false" aria-controls="map-description"><span></span>AI agents</button>
   <button class="map-node node-memory" type="button" data-map="memory" aria-pressed="false" aria-controls="map-description"><span></span>Project Memory</button>
 </div>
 </div>
-<figcaption class="map-caption" id="map-description" aria-live="polite">
-<strong>Set the direction.</strong><span>Give your agents a shared goal and decide what moves forward.</span>
+<figcaption class="map-caption">
+<div id="map-description" aria-live="polite">
+  <strong>Set the direction.</strong><span>Give your agents a shared goal and decide what moves forward.</span>
+</div>
+<p class="map-hint" id="map-hint">Drag a label or select it. Tap the logo to spin it.</p>
 </figcaption>
 </figure>
 </section>
 <section class="wrap about" id="about" aria-labelledby="about-title">
-<h2 id="about-title">One room.<br>Different perspectives.</h2>
-<div><p>Instead of repeating the same brief across separate chats, start a project in Pitstop and bring your connected agents into the discussion. Choose who responds, compare their ideas, and decide what moves forward.</p><p>When the conversation ends, save the decisions that matter in <strong>Project Memory</strong> so the next session can pick up where you left off.</p></div>
+<h2 id="about-title" data-scroll-reveal>One room.<br>Different perspectives.</h2>
+<div data-scroll-reveal><p>Instead of repeating the same brief across separate chats, start a project in Pitstop and bring your connected agents into the discussion. Choose who responds, compare their ideas, and decide what moves forward.</p><p>When the conversation ends, save the decisions that matter in <strong>Project Memory</strong> so the next session can pick up where you left off.</p></div>
 </section>
 <section class="story" id="walkthrough" aria-labelledby="story-title">
 <div class="wrap">
-<div class="story-head"><h2 id="story-title">From brief to decision.</h2><p>Follow a sample project as the team goes from an open question to a decision it can reuse.</p></div>
+<div class="story-head"><h2 id="story-title" data-scroll-reveal>From brief to decision.</h2><p data-scroll-reveal>Follow a sample project as the team goes from an open question to a decision it can reuse.</p></div>
 <div class="walk">
 <div class="steps" aria-label="Walkthrough steps">
 <button type="button" aria-pressed="true" data-step="0"><span>01</span><span><strong>Set the brief</strong><small>Give the project a goal.</small></span></button>
@@ -81,8 +88,8 @@
 </section>
 <section class="memory-section wrap" id="memory" aria-labelledby="memory-title">
 <div class="memory-copy">
-<h2 id="memory-title">Keep what<br>moves work forward.</h2>
-<p>Pitstop keeps project decisions and your communication preferences in separate places. Explore what belongs in each.</p>
+<h2 id="memory-title" data-scroll-reveal>Keep what<br>moves work forward.</h2>
+<p data-scroll-reveal>Pitstop keeps project decisions and your communication preferences in separate places. Explore what belongs in each.</p>
 <div class="memory-picker" aria-label="Explore the types of memory">
 <button type="button" data-memory="project" aria-controls="memory-example" aria-pressed="true">Project Memory</button>
 <button type="button" data-memory="soul" aria-controls="memory-example" aria-pressed="false">Soul Memory</button>
@@ -98,7 +105,7 @@
 </div>
 </section>
 <section class="wrap faq" id="faq" aria-labelledby="faq-title">
-<h2 id="faq-title">A few things<br>to know.</h2>
+<h2 id="faq-title" data-scroll-reveal>A few things<br>to know.</h2>
 <div>
 <details><summary>Who is Pitstop Chat for?</summary><p>Builders and project leads who already work with AI agents and want one place to brief them, discuss options, and record decisions.</p></details>
 <details><summary>Can I choose which agents respond?</summary><p>Yes. Choose who participates in a session and direct a message to a specific agent when you want their perspective.</p></details>
