@@ -118,6 +118,14 @@ figcaption{color:var(--muted);font-size:.875rem}
   font: 700 .78rem var(--font-display);
 }
 .agent-options button[aria-pressed="true"] .agent-mark { background: #63321f; color: #ffd0b5; }
+.agent-mark img, .agent-mark svg { display: block; width: 20px; height: 20px; object-fit: contain; }
+.agent-flight {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  transform-origin: top left;
+  box-shadow: 0 4px 12px #0008, 0 0 0 1px var(--orange);
+}
 .agent-options strong, .agent-options small { display: block; line-height: 1.35; }
 .agent-options strong { font-size: .87rem; }
 .agent-options small { margin-top: .15rem; color: var(--muted); font-size: .75rem; }
@@ -125,6 +133,26 @@ figcaption{color:var(--muted);font-size:.875rem}
 .workflow-room h3 { color: #ffd0b5; }
 .workflow-room .room { min-height: 290px; }
 .workflow-room .room-bar { flex-wrap: wrap; }
+.room-team {
+  display: grid;
+  gap: .45rem;
+  padding: .7rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.room-team > strong { font-size: .76rem; color: var(--muted); }
+.room-team ul { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0; padding: 0; list-style: none; }
+.room-member {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .23rem .46rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: .72rem;
+  line-height: 1.35;
+}
+.room-member .agent-mark { width: 16px; height: 16px; background: transparent; }
+.room-member .agent-mark img, .room-member .agent-mark svg { width: 16px; height: 16px; }
 .workflow-memory { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
 .workflow-memory h3 { margin-bottom: 1.4rem; }
 .workflow-memory svg { color: var(--cyan); margin-bottom: .85rem; }

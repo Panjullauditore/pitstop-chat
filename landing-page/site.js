@@ -58,15 +58,49 @@ enableReadingProgress();
 const steps = [...document.querySelectorAll('[data-step]')];
 const room = document.querySelector('#room-body');
 const agentOptions = [...document.querySelectorAll('[data-agent]')];
+const roomTeam = document.querySelector('#room-team-members');
+const joinedAgents = new Set();
 const memoryStatus = document.querySelector('#workflow-memory-status');
 const agentReplies = {
-  codex: ['CX', 'Build the first version as a single page. Put the product introduction first, followed by one interactive walkthrough.'],
-  gemini: ['GE', 'Make the walkthrough the visual focus. A visitor should be able to try one example without leaving the page.'],
-  cowork: ['CW', 'For the first release, agree on two deliverables: a clear introduction and one interactive example. Put the rest in the backlog.'],
-  deepseek: ['DS', 'A feature list alone may leave people guessing. Use one concrete example to show how a project goes from brief to decision.'],
-  custom: ['RR', 'Before release, check that a first-time visitor can understand the product and complete the example on a phone.'],
+  codex: 'Build the first version as a single page. Put the product introduction first, followed by one interactive walkthrough.',
+  gemini: 'Make the walkthrough the visual focus. A visitor should be able to try one example without leaving the page.',
+  cowork: 'For the first release, agree on two deliverables: a clear introduction and one interactive example. Put the rest in the backlog.',
+  deepseek: 'A feature list alone may leave people guessing. Use one concrete example to show how a project goes from brief to decision.',
+  custom: 'Before release, check that a first-time visitor can understand the product and complete the example on a phone.',
 };
 let selectedAgent = agentOptions[0];
+
+function addAgentToRoom(button) {
+  const key = button.dataset.agent;
+  if (joinedAgents.has(key)) return;
+  joinedAgents.add(key);
+
+  const source = button.querySelector('.agent-mark');
+  const member = document.createElement('li');
+  member.className = 'room-member';
+  const mark = source.cloneNode(true);
+  member.append(mark, button.querySelector('strong').textContent);
+  roomTeam.append(member);
+  if (reducedMotion.matches) return;
+
+  const from = source.getBoundingClientRect();
+  const to = mark.getBoundingClientRect();
+  if (from.bottom < 0 || from.top > innerHeight || to.bottom < 0 || to.top > innerHeight) {
+    reveal(member, 300);
+    return;
+  }
+
+  const packet = source.cloneNode(true);
+  packet.classList.add('agent-flight');
+  Object.assign(packet.style, { left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px` });
+  document.body.append(packet);
+  const flight = packet.animate([
+    { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+    { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})`, opacity: .65 }
+  ], { duration: 480, easing: motionEase });
+  member.animate([{ opacity: .2 }, { opacity: 1 }], { duration: 220, delay: 330, fill: 'backwards' });
+  flight.finished.then(() => packet.remove(), () => packet.remove());
+}
 const scenes = [
   {
     messages: [['You','Y','owner','Let’s plan the first version of our product site. Visitors should understand what we do and see an example before they leave.']],
@@ -89,16 +123,18 @@ function showScene(index) {
   memoryStatus.textContent = scene.saved ? 'Decision saved in this demo' : 'Awaiting a decision';
   const messages = [...scene.messages];
   if (index === 1) {
-    const [initial, reply] = agentReplies[selectedAgent.dataset.agent];
-    messages.unshift([selectedAgent.querySelector('strong').textContent, initial, 'research', reply]);
+    addAgentToRoom(selectedAgent);
+    messages.unshift([selectedAgent.querySelector('strong').textContent, selectedAgent.querySelector('.agent-mark').cloneNode(true), 'research', agentReplies[selectedAgent.dataset.agent]]);
   }
   const nodes = messages.map(([name, initial, style, message]) => {
     const item = document.createElement('div');
     item.className = 'message';
-    const badge = document.createElement('span');
-    badge.className = 'initial ' + style;
-    badge.setAttribute('aria-hidden', 'true');
-    badge.textContent = initial;
+    const badge = typeof initial === 'string' ? document.createElement('span') : initial;
+    if (typeof initial === 'string') {
+      badge.className = 'initial ' + style;
+      badge.setAttribute('aria-hidden', 'true');
+      badge.textContent = initial;
+    }
     const copy = document.createElement('div');
     const author = document.createElement('strong');
     const body = document.createElement('p');
