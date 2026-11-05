@@ -24,8 +24,8 @@ h2{font-size:clamp(2.25rem,5vw,4.3rem);line-height:1.08}
 .brand-chat{color:var(--muted)}
 nav{display:flex;align-items:center;gap:clamp(1rem,3vw,2.8rem);color:var(--muted);font-size:.92rem}
 nav a:hover,.up:hover{color:var(--text);text-decoration:underline}
-.studio-link{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}
-.studio-link svg{flex-shrink:0}
+.parent-link{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}
+.parent-link svg{flex-shrink:0}
 @media(max-width:480px){.header{flex-wrap:wrap;padding-block:.7rem}.header nav{width:100%;flex-wrap:wrap;row-gap:0}}
 .hero{display:grid;grid-template-columns:1.13fr 1fr;align-items:center;gap:clamp(1rem,4vw,4rem);padding-block:clamp(4rem,8vw,8rem) clamp(3.5rem,7vw,6rem);min-height:660px}
 h1{font-size:clamp(3.1rem,6.5vw,6rem);line-height:1.02}
