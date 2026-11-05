@@ -119,45 +119,61 @@ const planets = [...map.querySelectorAll('[data-map]')].map((button, index) => (
   route: map.querySelector('.route-' + button.dataset.map),
   offset: -Math.PI / 2 - index * 2 * Math.PI / 3,
   x: 0,
-  y: 0
+  y: 0,
+  curveX: 250,
+  curveY: 250
 }));
 
 function createStars() {
   const field = map.querySelector('.galaxy-stars');
   const svg = 'http://www.w3.org/2000/svg';
-  let seed = 20837;
-  const random = () => {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    return seed / 4294967296;
-  };
+  const colors = ['#d9ecff', '#75ddff', '#b7c7ff', '#fff1d8', '#a5c7f4', '#d7e4ff', '#84d6ea'];
 
-  for (let cluster = 0; cluster < 5; cluster++) {
-    const group = document.createElementNS(svg, 'g');
-    group.setAttribute('class', 'star-cluster');
-    for (let index = 0; index < 17; index++) {
-      const x = 10 + random() * 480;
-      const y = 10 + random() * 480;
-      const size = .55 + random() * 1.45;
-      const bright = index === 0;
-      const star = document.createElementNS(svg, bright ? 'path' : 'circle');
-      if (bright) {
-        star.setAttribute('d', 'M0 -5 1  -1 5 0 1 1 0 5 -1 1 -5 0 -1 -1Z');
-        star.setAttribute('transform', 'translate(' + x + ' ' + y + ')');
-      } else {
-        star.setAttribute('cx', x);
-        star.setAttribute('cy', y);
-        star.setAttribute('r', size);
-      }
-      star.setAttribute('opacity', bright ? .95 : .25 + random() * .7);
-      group.append(star);
+  function respawn(star, sparkle) {
+    const angle = Math.random() * 2 * Math.PI;
+    const distance = 242 * Math.sqrt(Math.random());
+    const x = 250 + distance * Math.cos(angle);
+    const y = 250 + distance * Math.sin(angle);
+    if (sparkle) {
+      const scale = .65 + Math.random() * .5;
+      star.setAttribute('transform', 'translate(' + x + ' ' + y + ') scale(' + scale + ')');
+    } else {
+      star.setAttribute('cx', x);
+      star.setAttribute('cy', y);
+      star.setAttribute('r', .55 + Math.random() * 1.55);
     }
-    field.append(group);
+    star.setAttribute('opacity', sparkle ? .95 : .37 + Math.random() * .63);
   }
+
+  colors.forEach((color, index) => {
+    const cluster = document.createElementNS(svg, 'g');
+    cluster.setAttribute('class', 'star-cluster');
+    const duration = 4 + Math.random() * 3.8;
+    cluster.style.fill = color;
+    cluster.style.animationDuration = duration + 's';
+    cluster.style.animationDelay = -(duration * ((index + .5) / colors.length)) + 's';
+
+    for (let point = 0; point < 16; point++) {
+      const sparkle = point === 0;
+      const star = document.createElementNS(svg, sparkle ? 'path' : 'circle');
+      if (sparkle) star.setAttribute('d', 'M0 -5 1 -1 5 0 1 1 0 5 -1 1 -5 0 -1 -1Z');
+      respawn(star, sparkle);
+      cluster.append(star);
+    }
+
+    // Each cluster moves to new positions only at its invisible animation boundary.
+    cluster.addEventListener('animationiteration', () => {
+      [...cluster.children].forEach((star, point) => respawn(star, point === 0));
+    });
+    field.append(cluster);
+  });
 }
+
 
 const turn = 2 * Math.PI;
 const angularSpeed = turn / 32000;
 let angle = 0;
+let flex = 0;
 let size = 0;
 let radiusX = 0;
 let radiusY = 0;
@@ -181,8 +197,15 @@ function renderOrbit() {
     planet.button.style.translate = x.toFixed(2) + 'px ' + y.toFixed(2) + 'px';
     planet.x = 250 + 500 * x / size;
     planet.y = 250 + 500 * y / size;
-    planet.route.setAttribute('x1', planet.x.toFixed(2));
-    planet.route.setAttribute('y1', planet.y.toFixed(2));
+    const dx = planet.x - 250;
+    const dy = planet.y - 250;
+    const bend = .47 + .085 * Math.sin(position * 2) + flex * .43;
+    planet.curveX = 250 + dx * .43 - dy * bend;
+    planet.curveY = 250 + dy * .43 + dx * bend;
+    planet.route.setAttribute('d',
+      'M' + planet.x.toFixed(2) + ' ' + planet.y.toFixed(2) +
+      ' Q' + planet.curveX.toFixed(2) + ' ' + planet.curveY.toFixed(2) + ' 250 250'
+    );
   }
 }
 
@@ -204,10 +227,10 @@ function isOrbiting() {
 function syncOrbit() {
   const moving = isOrbiting();
   map.toggleAttribute('data-orbit-running', moving);
-  const needsFrame = visible && !document.hidden && (moving || pulseStarted !== null);
+  const needsFrame = visible && !document.hidden && (moving || pulseStarted !== null || flex !== 0);
   if (needsFrame && !frame) frame = requestAnimationFrame(tickOrbit);
-  if (!needsFrame && frame) {
-    cancelAnimationFrame(frame);
+  if (!needsFrame) {
+    if (frame) cancelAnimationFrame(frame);
     frame = 0;
     previousTime = 0;
   }
@@ -215,22 +238,28 @@ function syncOrbit() {
 
 function tickOrbit(time) {
   frame = 0;
-  if (isOrbiting() && previousTime) {
-    angle = (angle + Math.min(time - previousTime, 48) * angularSpeed) % turn;
+  const elapsedTime = previousTime ? Math.min(time - previousTime, 48) : 0;
+  const moving = isOrbiting();
+  if (moving) angle = (angle + elapsedTime * angularSpeed) % turn;
+  if (moving || flex !== 0) {
+    flex *= Math.exp(-elapsedTime / 260);
+    if (Math.abs(flex) < .002) flex = 0;
     renderOrbit();
   }
 
   if (pulseStarted !== null) {
     const elapsed = Math.max(0, (time - pulseStarted) / 650);
     const planet = planets.find(item => item.key === map.dataset.active);
-    const distance = 1 - Math.min(elapsed, 1);
-    signalPacket.setAttribute('cx', 250 + (planet.x - 250) * distance);
-    signalPacket.setAttribute('cy', 250 + (planet.y - 250) * distance);
-    signalPacket.style.opacity = String(Math.max(0, Math.min(elapsed * 8, distance * 5, 1)));
+    const progress = Math.min(elapsed, 1);
+    const remaining = 1 - progress;
+    const curveWeight = 2 * remaining * progress;
+    signalPacket.setAttribute('cx', planet.x * remaining ** 2 + planet.curveX * curveWeight + 250 * progress ** 2);
+    signalPacket.setAttribute('cy', planet.y * remaining ** 2 + planet.curveY * curveWeight + 250 * progress ** 2);
+    signalPacket.style.opacity = String(Math.min(progress * 8, remaining * 5, 1));
     if (elapsed >= 1) pulseStarted = null;
   }
 
-  previousTime = isOrbiting() ? time : 0;
+  previousTime = time;
   syncOrbit();
 }
 
@@ -293,8 +322,11 @@ for (const planet of planets) {
     if (next === null) return;
     if (drag.lastAngle !== null) {
       const change = next - drag.lastAngle;
-      angle = (angle + Math.atan2(Math.sin(change), Math.cos(change))) % turn;
+      const step = Math.atan2(Math.sin(change), Math.cos(change));
+      angle = (angle + step) % turn;
+      if (!reducedMotion.matches) flex = Math.max(-.6, Math.min(.6, flex + step * 1.8));
       renderOrbit();
+      syncOrbit();
     }
     drag.lastAngle = next;
   });
@@ -327,7 +359,9 @@ orbitToggle.addEventListener('click', () => {
 reducedMotion.addEventListener('change', event => {
   if (!event.matches) return;
   paused = true;
+  flex = 0;
   pulseStarted = null;
+  renderOrbit();
   signalPacket.style.opacity = '0';
   document.getAnimations().forEach(animation => {
     if (animation instanceof CSSAnimation) return;

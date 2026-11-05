@@ -80,11 +80,16 @@ h1{text-wrap:wrap}
 /* The three paths share the real logo as their center. */
 .mark-art{width:100%;max-width:550px;margin-inline:auto}
 .track{stroke:#343f52}
-.route{stroke-width:2.5;stroke-dasharray:.02 .03;opacity:.26;transition:opacity .25s}
+.route {
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  opacity: .27;
+  transition: opacity .25s;
+}
 .route-you{stroke:var(--orange)}.route-agents{stroke:var(--blue)}.route-memory{stroke:var(--cyan)}
 .mark-art[data-active="you"] .route-you,
 .mark-art[data-active="agents"] .route-agents,
-.mark-art[data-active="memory"] .route-memory{opacity:1}
+.mark-art[data-active="memory"] .route-memory { opacity: .76; }
 .mark-art[data-active="you"] { --signal-color: var(--orange); }
 .mark-art[data-active="agents"] { --signal-color: var(--blue); }
 .mark-art[data-active="memory"] { --signal-color: var(--cyan); }
@@ -149,7 +154,7 @@ h1{text-wrap:wrap}
   stroke: #566e9e;
   pointer-events: none;
 }
-.orbit-guide { stroke: #738bb5; opacity: .43; }
+.orbit-guide { stroke: #738bb5; stroke-dasharray: 2 7; opacity: .26; }
 .orbit-ready .map-node { left: 50%; top: 50%; }
 .orbit-logo {
   position: relative;
@@ -171,18 +176,15 @@ h1{text-wrap:wrap}
 .star-cluster {
   fill: #d9ecff;
   stroke: none;
-  opacity: .58;
-  animation: star-shimmer 4.4s ease-in-out infinite alternate;
+  opacity: .6;
+  animation: star-shimmer 5s ease-in-out infinite;
   animation-play-state: paused;
 }
-.star-cluster:nth-child(2) { fill: #75ddff; animation-duration: 3.3s; animation-delay: -1.8s; }
-.star-cluster:nth-child(3) { fill: #b7c7ff; animation-duration: 5.7s; animation-delay: -3.1s; }
-.star-cluster:nth-child(4) { fill: #fff1d8; animation-duration: 2.9s; animation-delay: -2.2s; }
-.star-cluster:nth-child(5) { animation-duration: 5.1s; animation-delay: -1.4s; }
 .mark-art[data-orbit-running] .star-cluster { animation-play-state: running; }
 @keyframes star-shimmer {
-  0%, 100% { opacity: .27; }
-  48% { opacity: .88; }
+  0%, 100% { opacity: 0; }
+  23%, 75% { opacity: .65; }
+  46% { opacity: 1; }
 }
 .orbit-toggle {
   justify-self: center;
