@@ -104,176 +104,254 @@ steps.forEach((button, i) => button.addEventListener('click', () => showScene(i)
 
 const map = document.querySelector('#collaboration-map');
 const mapCaption = document.querySelector('#map-description');
-const mapButtons = [...document.querySelectorAll('[data-map]')];
-const signalTrace = map.querySelector('.signal-trace');
+const orbitToggle = document.querySelector('#orbit-toggle');
+const orbitGuide = map.querySelector('.orbit-guide');
+const logo = map.querySelector('.orbit-logo');
 const signalPacket = map.querySelector('.signal-packet');
-const logo = map.querySelector('img');
-let signalAnimations = [];
-
-const spinButton = map.querySelector('.logo-spin');
-const tether = map.querySelector('.drag-tether');
-let logoSpin;
-
-function spinLogo(fromClick = false) {
-  logoSpin?.cancel();
-  if (reducedMotion.matches) {
-    if (fromClick) logo.style.rotate = logo.style.rotate ? '' : '90deg';
-    return;
-  }
-  logo.style.rotate = '';
-  logoSpin = logo.animate(
-    [{ rotate: '0deg' }, { rotate: '360deg' }],
-    { duration: fromClick ? 1100 : 1650, easing: motionEase }
-  );
-}
-
-spinButton.addEventListener('click', () => spinLogo(true));
-
-function sendSignal(choice) {
-  signalAnimations.forEach(animation => animation.cancel());
-  signalAnimations = [];
-  if (reducedMotion.matches) return;
-
-  const route = document.getElementById('route-' + choice);
-  const length = route.getTotalLength();
-  const duration = 720;
-  const packetFrames = Array.from({ length: 17 }, (_, index) => {
-    const progress = index / 16;
-    const point = route.getPointAtLength(length * progress);
-    const opacity = Math.min(progress * 8, (1 - progress) * 6, 1);
-    return { transform: 'translate(' + point.x + 'px, ' + point.y + 'px)', opacity };
-  });
-
-  signalTrace.setAttribute('href', '#' + route.id);
-  signalAnimations = [
-    signalTrace.animate([
-      { strokeDashoffset: '1', opacity: .85 },
-      { strokeDashoffset: '0', opacity: .85, offset: .76 },
-      { strokeDashoffset: '0', opacity: 0 }
-    ], { duration: duration + 160, easing: motionEase }),
-    signalPacket.animate(packetFrames, { duration, easing: motionEase }),
-    logo.animate([
-      { transform: 'scale(1)' },
-      { transform: 'scale(1.035)', offset: .45 },
-      { transform: 'scale(1)' }
-    ], { duration: 350, delay: 300, easing: motionEase })
-  ];
-}
-
-const mapArrival = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
-  if (!entries.some(entry => entry.isIntersecting)) return;
-  mapArrival.disconnect();
-  if (!reducedMotion.matches) {
-    map.classList.add('map-intro');
-    spinLogo();
-    sendSignal(map.dataset.active);
-  }
-}, { threshold: .45 }) : null;
-
-mapArrival?.observe(map);
-reducedMotion.addEventListener('change', event => {
-  if (!event.matches) return;
-  map.classList.remove('map-intro');
-  document.getAnimations().forEach(animation => animation.cancel());
-});
-
 const mapCopy = {
   you: ['Set the direction.', 'Give your agents a shared goal and decide what moves forward.'],
   agents: ['Hear different perspectives.', 'Choose which connected agents join the conversation and who should reply.'],
   memory: ['Carry the decision forward.', 'Save key decisions to Project Memory so the next session has context.']
 };
-function selectMapNode(button) {
-  const choice = button.dataset.map;
-  mapArrival?.disconnect();
-  map.dataset.active = choice;
-  mapButtons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
-  const [heading, body] = mapCopy[choice];
-  mapCaption.querySelector('strong').textContent = heading;
-  mapCaption.querySelector('span').textContent = body;
-  sendSignal(choice);
-  reveal(mapCaption, 230);
-}
+const planets = [...map.querySelectorAll('[data-map]')].map((button, index) => ({
+  button,
+  key: button.dataset.map,
+  route: map.querySelector('.route-' + button.dataset.map),
+  offset: -Math.PI / 2 - index * 2 * Math.PI / 3,
+  x: 0,
+  y: 0
+}));
 
-const settleAnimations = new WeakMap();
-let drag;
-let ignoreClickOn;
+function createStars() {
+  const field = map.querySelector('.galaxy-stars');
+  const svg = 'http://www.w3.org/2000/svg';
+  let seed = 20837;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
 
-function finishDrag(event, activate) {
-  if (!drag || drag.pointerId !== event.pointerId) return;
-  const { button, moved, translation } = drag;
-  drag = undefined;
-  if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId);
-  if (!moved) return;
-
-  delete button.dataset.dragging;
-  delete map.dataset.dragging;
-  button.style.removeProperty('translate');
-  ignoreClickOn = button;
-  if (activate) selectMapNode(button);
-  if (!reducedMotion.matches) {
-    settleAnimations.set(button, button.animate(
-      [{ translate: translation }, { translate: '0px 0px' }],
-      { duration: 440, easing: motionEase }
-    ));
+  for (let cluster = 0; cluster < 5; cluster++) {
+    const group = document.createElementNS(svg, 'g');
+    group.setAttribute('class', 'star-cluster');
+    for (let index = 0; index < 17; index++) {
+      const x = 10 + random() * 480;
+      const y = 10 + random() * 480;
+      const size = .55 + random() * 1.45;
+      const bright = index === 0;
+      const star = document.createElementNS(svg, bright ? 'path' : 'circle');
+      if (bright) {
+        star.setAttribute('d', 'M0 -5 1  -1 5 0 1 1 0 5 -1 1 -5 0 -1 -1Z');
+        star.setAttribute('transform', 'translate(' + x + ' ' + y + ')');
+      } else {
+        star.setAttribute('cx', x);
+        star.setAttribute('cy', y);
+        star.setAttribute('r', size);
+      }
+      star.setAttribute('opacity', bright ? .95 : .25 + random() * .7);
+      group.append(star);
+    }
+    field.append(group);
   }
 }
 
-mapButtons.forEach(button => {
+const turn = 2 * Math.PI;
+const angularSpeed = turn / 32000;
+let angle = 0;
+let size = 0;
+let radiusX = 0;
+let radiusY = 0;
+let visible = !('IntersectionObserver' in window);
+let paused = reducedMotion.matches;
+let keyboardFocus = false;
+let frame = 0;
+let previousTime = 0;
+let pulseStarted = null;
+let drag;
+let skipClick;
+
+function renderOrbit() {
+  if (!size) return;
+
+  logo.style.rotate = angle + 'rad';
+  for (const planet of planets) {
+    const position = angle + planet.offset;
+    const x = Math.cos(position) * radiusX;
+    const y = Math.sin(position) * radiusY;
+    planet.button.style.translate = x.toFixed(2) + 'px ' + y.toFixed(2) + 'px';
+    planet.x = 250 + 500 * x / size;
+    planet.y = 250 + 500 * y / size;
+    planet.route.setAttribute('x1', planet.x.toFixed(2));
+    planet.route.setAttribute('y1', planet.y.toFixed(2));
+  }
+}
+
+function measureOrbit() {
+  size = map.clientWidth;
+  if (!size) return;
+  const labelWidth = Math.max(...planets.map(({ button }) => button.offsetWidth));
+  radiusX = Math.max(24, Math.min(size * .39, (size - labelWidth) / 2 - 5));
+  radiusY = size * .37;
+  orbitGuide.setAttribute('rx', 500 * radiusX / size);
+  orbitGuide.setAttribute('ry', 500 * radiusY / size);
+  renderOrbit();
+}
+
+function isOrbiting() {
+  return visible && !document.hidden && !paused && !drag && !keyboardFocus;
+}
+
+function syncOrbit() {
+  const moving = isOrbiting();
+  map.toggleAttribute('data-orbit-running', moving);
+  const needsFrame = visible && !document.hidden && (moving || pulseStarted !== null);
+  if (needsFrame && !frame) frame = requestAnimationFrame(tickOrbit);
+  if (!needsFrame && frame) {
+    cancelAnimationFrame(frame);
+    frame = 0;
+    previousTime = 0;
+  }
+}
+
+function tickOrbit(time) {
+  frame = 0;
+  if (isOrbiting() && previousTime) {
+    angle = (angle + Math.min(time - previousTime, 48) * angularSpeed) % turn;
+    renderOrbit();
+  }
+
+  if (pulseStarted !== null) {
+    const elapsed = Math.max(0, (time - pulseStarted) / 650);
+    const planet = planets.find(item => item.key === map.dataset.active);
+    const distance = 1 - Math.min(elapsed, 1);
+    signalPacket.setAttribute('cx', 250 + (planet.x - 250) * distance);
+    signalPacket.setAttribute('cy', 250 + (planet.y - 250) * distance);
+    signalPacket.style.opacity = String(Math.max(0, Math.min(elapsed * 8, distance * 5, 1)));
+    if (elapsed >= 1) pulseStarted = null;
+  }
+
+  previousTime = isOrbiting() ? time : 0;
+  syncOrbit();
+}
+
+function updateOrbitControl() {
+  orbitToggle.querySelector('.orbit-toggle-text').textContent = paused ? 'Play orbit' : 'Pause orbit';
+  orbitToggle.dataset.paused = String(paused);
+  if (paused) previousTime = 0;
+  syncOrbit();
+}
+
+function selectPlanet(planet) {
+  map.dataset.active = planet.key;
+  for (const item of planets) item.button.setAttribute('aria-pressed', String(item === planet));
+  const [heading, body] = mapCopy[planet.key];
+  mapCaption.querySelector('strong').textContent = heading;
+  mapCaption.querySelector('span').textContent = body;
+  if (!reducedMotion.matches) pulseStarted = performance.now();
+  reveal(mapCaption, 230);
+  syncOrbit();
+}
+
+function angleAt(event, bounds) {
+  const x = (event.clientX - bounds.left - bounds.width / 2) / radiusX;
+  const y = (event.clientY - bounds.top - bounds.height / 2) / radiusY;
+  return Math.hypot(x, y) < .18 ? null : Math.atan2(y, x);
+}
+
+function releasePlanet(event, activate) {
+  if (!drag || drag.id !== event.pointerId) return;
+  const { planet, moved } = drag;
+  drag = undefined;
+  if (planet.button.hasPointerCapture(event.pointerId)) planet.button.releasePointerCapture(event.pointerId);
+  delete planet.button.dataset.dragging;
+  if (moved) {
+    skipClick = planet.button;
+    if (activate) selectPlanet(planet);
+  }
+  syncOrbit();
+}
+
+for (const planet of planets) {
+  const { button } = planet;
   button.addEventListener('pointerdown', event => {
     if (!event.isPrimary || event.button !== 0 || drag) return;
-    ignoreClickOn = undefined;
-    map.classList.remove('map-intro');
-    settleAnimations.get(button)?.cancel();
+    skipClick = undefined;
     const bounds = map.getBoundingClientRect();
-    const label = button.getBoundingClientRect();
-    drag = {
-      button,
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: label.left + label.width / 2 - bounds.left,
-      originY: label.top + label.height / 2 - bounds.top,
-      width: bounds.width,
-      height: bounds.height,
-      halfWidth: label.width / 2,
-      halfHeight: label.height / 2,
-      moved: false
-    };
+    drag = { planet, id: event.pointerId, bounds, x: event.clientX, y: event.clientY,
+      lastAngle: angleAt(event, bounds), moved: false };
     button.setPointerCapture(event.pointerId);
+    previousTime = 0;
+    syncOrbit();
   });
 
   button.addEventListener('pointermove', event => {
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
-    if (!drag.moved && Math.hypot(dx, dy) < 6) return;
-    if (!drag.moved) {
-      drag.moved = true;
-      mapArrival?.disconnect();
-      signalAnimations.forEach(animation => animation.cancel());
-      button.dataset.dragging = '';
-      map.dataset.dragging = button.dataset.map;
+    if (!drag || drag.id !== event.pointerId) return;
+    if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return;
+    drag.moved = true;
+    button.dataset.dragging = '';
+    const next = angleAt(event, drag.bounds);
+    if (next === null) return;
+    if (drag.lastAngle !== null) {
+      const change = next - drag.lastAngle;
+      angle = (angle + Math.atan2(Math.sin(change), Math.cos(change))) % turn;
+      renderOrbit();
     }
-
-    const x = Math.min(drag.width - drag.halfWidth, Math.max(drag.halfWidth, drag.originX + dx));
-    const y = Math.min(drag.height - drag.halfHeight, Math.max(drag.halfHeight, drag.originY + dy));
-    drag.translation = (x - drag.originX) + 'px ' + (y - drag.originY) + 'px';
-    button.style.translate = drag.translation;
-    tether.setAttribute('x1', String(500 * x / drag.width));
-    tether.setAttribute('y1', String(500 * y / drag.height));
+    drag.lastAngle = next;
   });
 
-  button.addEventListener('pointerup', event => finishDrag(event, true));
-  button.addEventListener('pointercancel', event => finishDrag(event, false));
-  button.addEventListener('lostpointercapture', event => finishDrag(event, false));
+  button.addEventListener('pointerup', event => releasePlanet(event, true));
+  button.addEventListener('pointercancel', event => releasePlanet(event, false));
+  button.addEventListener('lostpointercapture', event => releasePlanet(event, false));
   button.addEventListener('click', event => {
-    if (event.detail && ignoreClickOn === button) {
-      ignoreClickOn = undefined;
+    if (event.detail && skipClick === button) {
+      skipClick = undefined;
       return;
     }
-    selectMapNode(button);
+    selectPlanet(planet);
   });
+  button.addEventListener('focus', () => {
+    keyboardFocus = button.matches(':focus-visible');
+    syncOrbit();
+  });
+  button.addEventListener('blur', () => {
+    keyboardFocus = false;
+    syncOrbit();
+  });
+}
+
+orbitToggle.addEventListener('click', () => {
+  paused = !paused;
+  updateOrbitControl();
 });
+
+reducedMotion.addEventListener('change', event => {
+  if (!event.matches) return;
+  paused = true;
+  pulseStarted = null;
+  signalPacket.style.opacity = '0';
+  document.getAnimations().forEach(animation => {
+    if (animation instanceof CSSAnimation) return;
+    animation.cancel();
+  });
+  updateOrbitControl();
+});
+
+createStars();
+measureOrbit();
+map.classList.add('orbit-ready');
+orbitToggle.hidden = false;
+updateOrbitControl();
+
+if ('ResizeObserver' in window) new ResizeObserver(measureOrbit).observe(map);
+else window.addEventListener('resize', measureOrbit);
+if ('IntersectionObserver' in window) {
+  const orbitObserver = new IntersectionObserver(([entry]) => {
+    visible = entry.isIntersecting;
+    syncOrbit();
+  });
+  orbitObserver.observe(map);
+}
+document.addEventListener('visibilitychange', syncOrbit);
 
 const memoryBoard = document.querySelector('#memory-example');
 const memoryButtons = [...document.querySelectorAll('[data-memory]')];

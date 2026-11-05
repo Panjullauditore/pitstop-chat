@@ -33,24 +33,7 @@ h1 span{color:var(--orange)}
 .action svg{transition:transform .2s}
 .action:hover svg{transform:translateX(3px)}
 .mark{align-self:center;min-width:0}
-.mark-art{aspect-ratio:1;position:relative;isolation:isolate;display:grid;place-items:center;background:radial-gradient(ellipse at center,#172031 0%,var(--canvas) 69%)}
-.logo-spin {
-  position: relative;
-  z-index: 1;
-  width: 57%;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: none;
-  cursor: pointer;
-}
-.logo-spin img {
-  display: block;
-  width: 100%;
-  height: auto;
-  pointer-events: none;
-  user-select: none;
-}
+.mark-art{aspect-ratio:1;position:relative;isolation:isolate;display:grid;place-items:center}
 .track{position:absolute;inset:0;width:100%;height:100%;stroke:#384358}
 figcaption{color:var(--muted);font-size:.875rem}
 .about,.faq{display:grid;grid-template-columns:1fr 1fr;gap:clamp(1.7rem,5vw,5rem);padding-block:clamp(3.5rem,8vw,7rem);border-top:1px solid var(--line)}
@@ -105,23 +88,15 @@ h1{text-wrap:wrap}
 .mark-art[data-active="you"] { --signal-color: var(--orange); }
 .mark-art[data-active="agents"] { --signal-color: var(--blue); }
 .mark-art[data-active="memory"] { --signal-color: var(--cyan); }
-.signal-trace{
-  stroke:var(--signal-color);
-  stroke-width:3;
-  stroke-linecap:round;
-  stroke-dasharray:1;
-  stroke-dashoffset:1;
-  opacity:0;
-}
 .signal-packet{fill:var(--signal-color);stroke:none;opacity:0}
 .map-controls{position:absolute;inset:0;z-index:2;pointer-events:none}
 .map-node{position:absolute;display:inline-flex;align-items:center;justify-content:center;gap:.4rem;transform:translate(-50%,-50%);min-height:44px;padding:.58rem .7rem;white-space:nowrap;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--muted);font:700 .875rem/1.2 var(--font-display);cursor:grab;pointer-events:auto;touch-action:none;user-select:none;transition:background .2s,border-color .2s}
 .map-node>span,.memory-label>span{height:.5rem;width:.5rem;flex:0 0 auto;border-radius:50%;background:var(--node-color)}
 .map-node[aria-pressed=true]{border-color:var(--node-color);color:var(--text);background:#1b2231}
 .map-node:hover{background:#242c3e;color:var(--text)}
-.node-you{--node-color:var(--orange);top:14.4%;left:50%}
-.node-agents{--node-color:var(--blue);top:76.4%;left:17%}
-.node-memory{--node-color:var(--cyan);top:76.4%;left:81%}
+.node-you{--node-color:var(--orange);top:13%;left:50%}
+.node-agents{--node-color:var(--blue);top:68.6%;left:19.6%}
+.node-memory{--node-color:var(--cyan);top:68.6%;left:80.4%}
 .map-caption{display:grid;gap:.45rem;justify-content:stretch;min-height:106px;text-align:center;align-content:start;max-width:46ch;margin:-.25rem auto 0;padding-inline:.4rem}
 .map-caption strong{display:block;color:var(--text);font-size:1.125rem}
 .map-caption span{display:block;line-height:1.45}
@@ -151,33 +126,7 @@ h1{text-wrap:wrap}
 /* Reveal editorial copy once and keep interaction controls available. */
 @media (prefers-reduced-motion: no-preference) {
   .reveal-ready [data-scroll-reveal]:not(.is-revealed) { opacity: 0; }
-
-  .map-intro .map-node {
-    animation: float-label 2.4s ease-in-out both;
-  }
-  .map-intro .node-agents { animation-delay: .12s; }
-  .map-intro .node-memory { animation-delay: .24s; }
 }
-@keyframes float-label {
-  0%, 100% { transform: translate(-50%, -50%); }
-  42% { transform: translate(-50%, calc(-50% - 8px)); }
-}
-.map-node[data-dragging] {
-  z-index: 3;
-  cursor: grabbing;
-  border-color: var(--node-color);
-  color: var(--text);
-  background: #242c3e;
-}
-.drag-tether {
-  opacity: 0;
-  stroke-width: 1.8;
-  stroke-dasharray: 4 5;
-}
-.mark-art[data-dragging] .drag-tether { opacity: .9; }
-.mark-art[data-dragging="you"] .drag-tether { stroke: var(--orange); }
-.mark-art[data-dragging="agents"] .drag-tether { stroke: var(--blue); }
-.mark-art[data-dragging="memory"] .drag-tether { stroke: var(--cyan); }
 
 .reading-progress {
   position: fixed;
@@ -188,4 +137,72 @@ h1{text-wrap:wrap}
   transform: scaleX(var(--reading-progress, 0));
   transform-origin: left;
   pointer-events: none;
+}
+
+/* The same angle drives the orbit and logo. Labels stay upright. */
+.mark-art {
+  background:
+    radial-gradient(ellipse 40% 37% at 59% 42%, #202c52 0%, transparent 100%),
+    radial-gradient(ellipse 49% 46% at 49% 54%, #143a4d 0%, #102134 58%, transparent 100%);
+}
+.track {
+  stroke: #566e9e;
+  pointer-events: none;
+}
+.orbit-guide { stroke: #738bb5; opacity: .43; }
+.orbit-ready .map-node { left: 50%; top: 50%; }
+.orbit-logo {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 53%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
+.map-node:focus-visible { z-index: 4; }
+.map-node[data-dragging] {
+  z-index: 5;
+  cursor: grabbing;
+  border-color: var(--node-color);
+  color: var(--text);
+  background: #242c3e;
+}
+.star-cluster {
+  fill: #d9ecff;
+  stroke: none;
+  opacity: .58;
+  animation: star-shimmer 4.4s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+.star-cluster:nth-child(2) { fill: #75ddff; animation-duration: 3.3s; animation-delay: -1.8s; }
+.star-cluster:nth-child(3) { fill: #b7c7ff; animation-duration: 5.7s; animation-delay: -3.1s; }
+.star-cluster:nth-child(4) { fill: #fff1d8; animation-duration: 2.9s; animation-delay: -2.2s; }
+.star-cluster:nth-child(5) { animation-duration: 5.1s; animation-delay: -1.4s; }
+.mark-art[data-orbit-running] .star-cluster { animation-play-state: running; }
+@keyframes star-shimmer {
+  0%, 100% { opacity: .27; }
+  48% { opacity: .88; }
+}
+.orbit-toggle {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  min-height: 44px;
+  padding: .3rem .65rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .8125rem;
+  cursor: pointer;
+}
+.orbit-toggle:hover { border-color: var(--line); color: var(--text); }
+.orbit-toggle[hidden] { display: none; }
+.orbit-toggle .play-icon, .orbit-toggle[data-paused="true"] .pause-icon { display: none; }
+.orbit-toggle[data-paused="true"] .play-icon { display: block; }
+
+@media (max-width: 670px) {
+  .orbit-logo { width: 47%; }
 }
