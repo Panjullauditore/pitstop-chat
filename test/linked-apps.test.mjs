@@ -146,6 +146,9 @@ test('Antigravity App links require the native bridge and never start a CLI copy
   const result=await runLinkedApp('antigravity',link,'request',{images:[]},{definitions,runNativeApp:async(target,prompt,options)=>{received={target,prompt,options};return {text:'Native App reply',nativeChat:{id:target.id,history:'saved'}};}});
   assert.equal(received.target.id,id);assert.match(received.prompt,/Pitlane/);assert.equal(result.nativeChat.id,id);
   await assert.rejects(runLinkedApp('antigravity',{...link,transport:undefined},'request',{}, {definitions}),/no CLI copy was started/);
+  // Reusing App storage through ACP does not attach to the live App process.
+  // Reject this route even when a browser callback exists; never claim sync.
+  await assert.rejects(runLinkedApp('antigravity',{...link,transport:'acp-app'},'request',{}, {definitions,runNativeApp:()=>{throw new Error('must not fall back');}}),/no CLI copy was started/);
   await assert.rejects(runLinkedApp('antigravity',{...link,source:'antigravity-cli'},'request',{}, {definitions}),/unsupported/);
 });
 

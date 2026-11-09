@@ -8,7 +8,7 @@ import { detectAgents, runAgent } from './adapters.mjs';
 import { ManualWebBridge } from './manual-web.mjs';
 import {DeepSeekBrowserBridge} from './deepseek-browser.mjs';
 import {ExtensionBridge,extensionIdentity} from './extension-bridge.mjs';
-import {listCodexChats,antigravityChats,resolveAppLink} from './linked-apps.mjs';
+import {listCodexChats,listClaudeChats,antigravityChats,resolveAppLink} from './linked-apps.mjs';
 import {runLinkedApp} from './run-linked-app.mjs';
 import {NativeAppBridge,appRemoteUrl} from './app-bridge.mjs';
 import { SessionStore } from './sessions.mjs';
@@ -77,7 +77,8 @@ async function refreshModels() {
 }
 const sessions = new SessionStore({ directory:dataDirectory, seed:soulSeed, context, agents:definitions, attachments,
   runner:async(agent,prompt,options)=>{
-    if(options.nativeLink&&['codex','antigravity','deepseek'].includes(agent)){
+    if(!sessions.isBotEnabled(agent))throw new Error('Bot ini sedang Off.');
+    if(options.nativeLink&&['codex','claude','antigravity','deepseek'].includes(agent)){
       const link=options.nativeLink;
       try{
         const savedLink=sessions.projects.find(p=>p.id===options.nativeContext?.projectId)?.linkedApps?.[agent];
@@ -176,6 +177,25 @@ async function readBytes(request, limit) {
 async function body(request) { return JSON.parse((await readBytes(request,request.url.startsWith('/api/sessions/import') ? 8000000 : request.url.startsWith('/api/project-memory')||/^\/api\/bridge\/(?:app\/)?event/.test(request.url)?800000:request.url.startsWith('/api/web-agent/reply')?250000:120000)).toString('utf8') || '{}'); }
 let mutation = Promise.resolve();
 function exclusive(action) { const result = mutation.then(action); mutation = result.catch(() => {}); return result; }
+async function prepareChat(target) {
+  if(target.getLinkedApps?.().codex)await refreshCodexAppConnection(target,{allowExclusive:true});
+}
+let queueScheduled=false,shuttingDown=false;
+function scheduleChatQueue() {
+  if(shuttingDown||queueScheduled||!room.canDispatchChat())return;
+  queueScheduled=true;
+  setImmediate(()=>{
+    void exclusive(async()=>{
+      if(shuttingDown||!room.canDispatchChat())return;
+      const target=room;
+      await target.dispatchChat(()=>prepareChat(target));
+    }).catch(error=>sessions.emit('storageError',error)).finally(()=>{
+      queueScheduled=false;
+      scheduleChatQueue();
+    });
+  });
+}
+sessions.on('change',scheduleChatQueue);
 const server = http.createServer(async (request, response) => {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'no-referrer');
@@ -235,17 +255,18 @@ const server = http.createServer(async (request, response) => {
       }
       if(request.method==='GET'&&url.pathname==='/api/linked-apps/chats'){
         const provider=url.searchParams.get('provider'),query=(url.searchParams.get('query')||'').slice(0,120);
-        if(!['codex','antigravity'].includes(provider))throw new Error('Choose Codex or Antigravity.');
-        const data=provider==='codex'?await listCodexChats(definitions.codex,{query,cursor:url.searchParams.get('cursor')}):await antigravityChats({query});
+        const cursor=url.searchParams.get('cursor');
+        const data=provider==='codex'?await listCodexChats(definitions.codex,{query,cursor}):provider==='claude'?await listClaudeChats({query,cursor}):provider==='antigravity'?await antigravityChats({query}):null;
+        if(!data)throw new Error('Choose Codex, Claude Code, or Antigravity.');
         return json(response,200,data);
       }
       if(request.method==='POST'&&url.pathname==='/api/projects/linked-apps'){
-        const input=await body(request);if(!input.links||typeof input.links!=='object'||Array.isArray(input.links)||Object.keys(input.links).some(key=>!['codex','antigravity','deepseek'].includes(key)))throw new Error('Invalid linked app settings.');
+        const input=await body(request);if(!input.links||typeof input.links!=='object'||Array.isArray(input.links)||Object.keys(input.links).some(key=>!['codex','claude','antigravity','deepseek'].includes(key)))throw new Error('Invalid linked app settings.');
         const state=await mutate(async()=>{
           const project=sessions.projects.find(project=>project.id===input.projectId);if(!project)throw new Error('Project was not found.');
           const workspaceFallback=join(dataDirectory,'agent-workspaces',project.id);
           if(input.links.antigravity)await mkdir(workspaceFallback,{recursive:true});
-          const links={};for(const provider of ['codex','antigravity','deepseek'])if(input.links[provider])links[provider]=await resolveAppLink(provider,input.links[provider],{definitions,workspaceFallback});
+          const links={};for(const provider of ['codex','claude','antigravity','deepseek'])if(input.links[provider])links[provider]=await resolveAppLink(provider,input.links[provider],{definitions,workspaceFallback});
           if(links.antigravity&&input.links.antigravity.remoteUrl)links.antigravity.remoteUrl=appRemoteUrl(input.links.antigravity.remoteUrl,links.antigravity.id);
           for(const [provider,link] of Object.entries(links)){
             const previous=project.linkedApps?.[provider];
@@ -403,9 +424,27 @@ const server = http.createServer(async (request, response) => {
         Object.assign(definitions,detectAgents());await checkAccount(id);
         return json(response,200,{state:sessions.snapshot()});
       }
+      if(request.method==='POST'&&url.pathname==='/api/agents/power'){
+        const {agent,enabled}=await body(request);
+        await exclusive(()=>sessions.setBotEnabled(agent,enabled));
+        return json(response,200,{disabledBotIds:[...sessions.disabledBotIds]});
+      }
       if (request.method === 'POST' && url.pathname === '/api/send') {
         const input = await body(request);
-        const result = await mutate(async() => {if(room.getLinkedApps?.().codex)await refreshCodexAppConnection(room,{allowExclusive:true});return room.send(input);}); return json(response, 202, result);
+        const result = await mutate(async()=>{
+          if(!input.decisionId&&input.mode!=='attendance'&&(room.run||room.chatQueue.length||room.memoryBusy?.()))return room.enqueueChat(input);
+          await prepareChat(room);
+          return room.send(input);
+        });
+        return json(response,202,result);
+      }
+      if (request.method === 'POST' && url.pathname === '/api/chat-queue') {
+        const input=await body(request);
+        await mutate(async()=>{
+          if(input.sessionId!==sessions.activeId)throw new Error('Sesi aktif berubah. Muat ulang sebelum menyimpan.');
+          await room.updateQueuedChat(input);
+        });
+        return json(response,200,{chatQueue:room.chatQueue});
       }
       if (request.method === 'POST' && url.pathname === '/api/stop') {
         await mutate(() => room.stop()); return json(response, 200, { stopped: true });
@@ -497,8 +536,9 @@ server.listen(port, '127.0.0.1', () => {
     void refreshModels().catch(error=>console.error('Model refresh:',error.message));
     void refreshCodexAppConnection();
   }
+  scheduleChatQueue();
 });
 const codexAppTimer=setInterval(()=>{if(process.env.ROOM_SKIP_CLI_CHECKS!=='1')void refreshCodexAppConnection();},15000);codexAppTimer.unref();
 const memoryRetentionTimer=setInterval(()=>void sessions.summaryService.cleanup().catch(error=>sessions.emit('storageError',error)),60000);memoryRetentionTimer.unref();
-async function shutdown() {clearInterval(codexAppTimer);clearInterval(memoryRetentionTimer);sessions.summaryService.active?.controller.abort();await sessions.summaryService.active?.done;await sessions.summaryService.cleaning; await room.stop(); chromeBridge.close(); appBridge.close(); await deepseekBrowser.close(); await room.save(); await sessions.persist(); for (const client of clients) client.end(); server.close(() => process.exit(0)); }
+async function shutdown() {shuttingDown=true;clearInterval(codexAppTimer);clearInterval(memoryRetentionTimer);sessions.summaryService.active?.controller.abort();await sessions.summaryService.active?.done;await sessions.summaryService.cleaning; await room.stop(); chromeBridge.close(); appBridge.close(); await deepseekBrowser.close(); await room.save(); await sessions.persist(); for (const client of clients) client.end(); server.close(() => process.exit(0)); }
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);

@@ -38,6 +38,44 @@ test('linked app chats persist per project, cannot be shared across projects or 
   await store.setLinkedApps(first,{});assert.deepEqual(store.projects[0].linkedApps,{});await store.setLinkedApps(other,{codex:link});
   for(const room of reloaded.rooms.values()){await room.save();await room.brain.queue;}
 });
+test('a powered-off bot cannot receive group context as manager, via mention, or after restart', async t => {
+  const calls = [];
+  const {store,options} = await setup(t, async agent => { calls.push(agent); return 'OK'; });
+  options.agents.claude = {id:'claude',name:'Claude',installed:true};
+  await store.createProject({name:'Team',agentIds:['claude'],managerId:'codex'});
+  await store.setBotEnabled('codex',false);
+  await store.room.send({text:'Group message',mode:'both',syncMemory:false});
+  await store.room.run?.done;
+  assert.deepEqual(calls,['claude']);
+  await assert.rejects(store.room.send({text:'@Codex Private message'}),/sedang Off/);
+  await store.setBotEnabled('claude',false);
+  assert.equal((await store.room.send({text:'No agents'})).runId,null);
+  assert.equal(store.room.messages.at(-1).text,'No agents');
+  assert.deepEqual(calls,['claude']);
+  const reloaded = new SessionStore(options);
+  await reloaded.load();
+  assert.deepEqual(reloaded.snapshot().disabledBotIds,['codex','claude']);
+  await reloaded.setBotEnabled('codex',true);
+  await reloaded.room.send({text:'New request',mode:'codex',syncMemory:false});
+  await reloaded.room.run?.done;
+  await reloaded.room.save();
+  assert.deepEqual(calls,['claude','codex']);
+});
+
+test('powering off a bot aborts a turn that already started', async t => {
+  let started;
+  const ready = new Promise(resolve => { started=resolve; });
+  const {store} = await setup(t, (_,__,{signal}) => new Promise((resolve,reject)=>{
+    signal.addEventListener('abort',()=>reject(new DOMException('Stopped','AbortError')),{once:true});
+    started();
+  }));
+  await store.room.send({text:'Start',mode:'codex',syncMemory:false});
+  await ready;
+  await store.setBotEnabled('codex',false);
+  assert.equal(store.room.run,null);
+  assert.equal(store.room.messages.at(-1).status,'stopped');
+});
+
 test('server sessions isolate transcripts, prompts and Soul across switches and restart', async t => {
   const prompts=[];const {store,options}=await setup(t,async (_,prompt)=>{prompts.push(prompt);return 'OK';});
   await store.room.send({text:'Rahasia sesi lama',mode:'codex'});await store.room.run?.done;

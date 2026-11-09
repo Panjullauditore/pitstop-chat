@@ -36,7 +36,7 @@
     --border: 220.714 22.581% 24.314%; /* #30394C */
     --input: 222.857 28.000% 9.804%; /* #121620 */
     --ring: 186.173 100.000% 47.647%; /* #00DAF3 */
-    --radius: 0.5rem;
+    --radius: 0.75rem;
     --rail: 222.857 28% 4.902%; /* #090B10 */
   }
 }
@@ -138,11 +138,112 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid
 }
 
 /* Composition from the supplied Stitch pit-wall preview. */
-.pitstop-transmit { background: linear-gradient(105deg, #FF570F, #F73C21); }
+.pitstop-action, .pitstop-transmit {
+  transition: scale 120ms ease-out, background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+}
+.pitstop-action:active:not(:disabled):not([aria-disabled="true"]),
+.pitstop-transmit:active:not(:disabled):not([aria-disabled="true"]) { scale: .96; }
+.pitstop-transmit {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #FF4500;
+  box-shadow: 0 1px 0 rgb(255 255 255 / .18) inset, 0 6px 16px -6px rgb(255 69 0 / .55);
+}
+.pitstop-transmit:disabled { box-shadow: none; }
+.pitstop-transmit::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0 auto 0 0;
+  width: 55%;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 10%, rgb(255 228 211 / .46) 52%, transparent 90%);
+  transform: translateX(-105%);
+}
+@media (hover: hover) {
+  .pitstop-transmit:not(:disabled):hover::after { animation: pitstop-transmit-pass 460ms cubic-bezier(.22,.61,.36,1); }
+}
+.pitstop-transmit:not(:disabled):focus-visible::after { animation: pitstop-transmit-pass 460ms cubic-bezier(.22,.61,.36,1); }
+@keyframes pitstop-transmit-pass { to { transform: translateX(190%); } }
 .pitstop-panel { background: linear-gradient(145deg, #181D28, #10141D); }
+
+.pitstop-composer { background: linear-gradient(180deg, #171C28, #131823); box-shadow: 0 1px 0 rgb(255 255 255 / .04) inset, 0 18px 40px -20px rgb(0 0 0 / .8); transition: border-color 160ms ease-out, box-shadow 200ms ease-out; }
+.pitstop-composer:focus-within { box-shadow: 0 1px 0 rgb(255 255 255 / .05) inset, 0 0 0 3px rgb(0 218 243 / .12), 0 18px 40px -20px rgb(0 0 0 / .8); }
+.pitstop-welcome { background: radial-gradient(60% 45% at 50% 30%, rgb(255 69 0 / .09), transparent 70%), radial-gradient(40% 35% at 70% 55%, rgb(0 218 243 / .05), transparent 70%); }
+.pitstop-suggest { transition: transform 200ms cubic-bezier(.16,1,.3,1), scale 120ms ease-out, border-color 160ms ease-out, background-color 160ms ease-out, box-shadow 200ms ease-out; }
+.pitstop-suggest:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -18px rgb(0 0 0 / .9); }
+@media (prefers-reduced-motion: reduce) { .pitstop-suggest:hover { transform: none; } }
+.pitstop-prompt-arrow { transition: translate 180ms cubic-bezier(.16,1,.3,1), color 150ms ease-out; }
+@media (hover: hover) {
+  .pitstop-prompt:hover .pitstop-prompt-arrow { translate: 3px -3px; }
+}
+.pitstop-prompt:focus-visible .pitstop-prompt-arrow { translate: 3px -3px; }
+
+.pitstop-dialog-backdrop[data-state="open"] { animation: pitstop-backdrop-in 180ms ease-out both; }
+.pitstop-dialog-backdrop[data-state="closed"] { animation: pitstop-backdrop-out 140ms ease-in both; }
+.pitstop-dialog[data-state="open"] { animation: pitstop-dialog-in 230ms cubic-bezier(.16,1,.3,1) both; }
+.pitstop-dialog[data-state="closed"] { animation: pitstop-dialog-out 130ms ease-in both; }
+.pitstop-dialog[data-presentation="drawer"][data-state="open"] { animation-name: pitstop-drawer-in; animation-duration: 260ms; }
+.pitstop-dialog[data-presentation="drawer"][data-state="closed"] { animation-name: pitstop-drawer-out; animation-duration: 160ms; }
+@keyframes pitstop-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pitstop-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes pitstop-dialog-in { from { opacity: 0; translate: 0 10px; scale: .98; } }
+@keyframes pitstop-dialog-out { to { opacity: 0; translate: 0 6px; scale: .99; } }
+@keyframes pitstop-drawer-in { from { opacity: .5; translate: 36px 0; } }
+@keyframes pitstop-drawer-out { to { opacity: 0; translate: 24px 0; } }
+
+.pitstop-queue-entry { animation: pitstop-queue-in 200ms cubic-bezier(.16,1,.3,1) both; }
+.pitstop-jump-latest { animation: pitstop-jump-in 160ms ease-out both; }
+@keyframes pitstop-queue-in { from { opacity: .35; translate: -6px 0; } }
+@keyframes pitstop-jump-in { from { opacity: 0; scale: .88; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pitstop-action:active:not(:disabled):not([aria-disabled="true"]),
+  .pitstop-transmit:active:not(:disabled):not([aria-disabled="true"]) { scale: 1; }
+  .pitstop-transmit::after { display: none; }
+  .pitstop-prompt:hover .pitstop-prompt-arrow,
+  .pitstop-prompt:focus-visible .pitstop-prompt-arrow { translate: none; }
+  .pitstop-dialog[data-state][data-presentation],
+  .pitstop-dialog[data-state],
+  .pitstop-dialog-backdrop[data-state],
+  .pitstop-queue-entry, .pitstop-jump-latest { animation: none; }
+}
 
 /* Live status: a steady core with a compositor-friendly breathing glow. */
 .pitstop-live-dot { position: relative; isolation: isolate; }
 .pitstop-live-dot::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; background: radial-gradient(circle, currentColor 0%, transparent 72%); opacity: .3; pointer-events: none; animation: pitstop-live-glow 2.4s ease-in-out infinite; }
 @keyframes pitstop-live-glow { 0%, 100% { opacity: .2; transform: scale(.85); } 50% { opacity: .45; transform: scale(1.1); } }
 @media (prefers-reduced-motion: reduce) { .pitstop-live-dot::after { animation: none; opacity: .3; transform: none; } }
+
+.pitstop-clock-alert {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  box-shadow: 0 0 6px rgb(248 113 113 / .42);
+}
+.pitstop-clock-alert::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: -1;
+  width: 68%;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 8%, rgb(248 113 113 / .38) 39%, rgb(255 255 255 / .32) 52%, rgb(248 113 113 / .32) 65%, transparent 92%);
+  animation: pitstop-clock-double-sweep 2.4s linear infinite;
+}
+.pitstop-clock-alert[data-reminder-stage="1"]::before { animation-duration: 1.65s; }
+.pitstop-clock-alert[data-reminder-stage="2"]::before { animation-duration: 1.18s; }
+.pitstop-clock-alert[data-reminder-stage="3"]::before { animation-duration: .88s; }
+.pitstop-clock-alert[data-reminder-stage="3"] {
+  box-shadow: 0 0 12px rgb(248 113 113 / .62);
+}
+@keyframes pitstop-clock-double-sweep {
+  0%, 35% { transform: translateX(-100%); }
+  /* Jump back offscreen between passes so neither streak runs backward. */
+  25% { transform: translateX(160%); animation-timing-function: steps(1, end); }
+  60%, 100% { transform: translateX(160%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pitstop-clock-alert::before { content: none; animation: none; }
+}

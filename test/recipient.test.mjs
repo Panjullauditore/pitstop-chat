@@ -1,16 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {messageRecipient,selectRecipient,mentionSuggestions,completeMention} from '../src/lib/recipient.mjs';
+import {messageRecipients,selectRecipient,mentionSuggestions,completeMention} from '../src/lib/recipient.mjs';
 
 const agents=[{id:'codex',name:'Codex'},{id:'deepseek',name:'DeepSeek Web'},{id:'claude',name:'Code'}];
+const ids=text=>messageRecipients(text,agents).map(agent=>agent.id);
 
-test('selecting or switching a recipient inserts one mention and preserves the draft',()=>{
+test('chips toggle individual mentions and Team clears them while preserving the draft',()=>{
   const first=selectRecipient('Review this file',agents,'codex');
   assert.equal(first,'@Codex Review this file');
-  assert.equal(messageRecipient(first,agents)?.id,'codex');
+  assert.deepEqual(ids(first),['codex']);
   const switched=selectRecipient(first,agents,'deepseek');
-  assert.equal(switched,'@DeepSeek Web Review this file');
-  assert.equal(selectRecipient(switched,agents,'deepseek'),switched);
+  assert.equal(switched,'@DeepSeek Web @Codex Review this file');
+  assert.equal(selectRecipient(switched,agents,'deepseek'),first);
   assert.equal(selectRecipient(switched,agents,'broadcast'),'Review this file');
 });
 
@@ -25,33 +26,34 @@ test('mention suggestions search only available bot names and provider IDs at th
   assert.equal(mentionSuggestions('@Codex',6,agents.filter(a=>a.id!=='codex')),null);
 });
 
-test('accepting a suggestion preserves the body, completes multiword names and routes to exactly that agent',()=>{
+test('accepting a suggestion replaces the tag at the caret and keeps other tags',()=>{
   for(const [source,caret,id,expected] of [
     ['@co',3,'codex','@Codex '],
     ['@de hello',3,'deepseek','@DeepSeek Web hello'],
-    ['Review @co later',10,'codex','@Codex Review later'],
+    ['Review @co later',10,'codex','Review @Codex later'],
     ['@DeepSeek Web hello',5,'codex','@Codex hello'],
-    ['@DeepSeek Web review @co',24,'codex','@Codex review '],
+    ['@DeepSeek Web review @co',24,'codex','@DeepSeek Web review @Codex '],
     ['@cod later',3,'codex','@Codex later'],
-    ['  @co hello',5,'codex','@Codex hello'],
+    ['  @co hello',5,'codex','  @Codex hello'],
   ]){
     const range=mentionSuggestions(source,caret,agents);assert.ok(range,source);
     const result=completeMention(source,agents,id,range);assert.equal(result.text,expected);
-    assert.equal(messageRecipient(result.text,agents)?.id,id);assert.ok(result.caret>=0&&result.caret<=result.text.length);
+    assert.ok(ids(result.text).includes(id));assert.ok(result.caret>=0&&result.caret<=result.text.length);
   }
 });
 
-test('deleting a mention returns to all agents and typing a complete mention selects its recipient',()=>{
-  assert.equal(messageRecipient('@Code hello',agents)?.id,'claude');
-  assert.equal(messageRecipient('@Codex hello',agents)?.id,'codex');
-  assert.equal(messageRecipient('@Cod hello',agents),undefined);
-  assert.equal(messageRecipient('hello',agents),undefined);
-  assert.equal(messageRecipient('',agents),undefined);
-  assert.equal(messageRecipient('  @deepseek web\nhello',agents)?.id,'deepseek');
-  assert.equal(messageRecipient('@CodexExtra hello',agents),undefined);
-  assert.equal(messageRecipient('Ask @Codex about this',agents),undefined);
-  assert.equal(messageRecipient('@Codex hello',agents.filter(agent=>agent.id!=='codex')),undefined);
-  assert.equal(messageRecipient('@DeepSeek hello',agents)?.id,'deepseek');
+test('complete mentions work anywhere and deduplicate without matching emails or URLs',()=>{
+  assert.deepEqual(ids('@Code hello'),['claude']);
+  assert.deepEqual(ids('@Codex hello'),['codex']);
+  assert.deepEqual(ids('@Cod hello @CodexExtra hello'),[]);
+  assert.deepEqual(ids('hello'),[]);
+  assert.deepEqual(ids('  @deepseek web\nhello'),['deepseek']);
+  assert.deepEqual(ids('Ask (@Codex), then @DeepSeek, then @CODEX.'),['codex','deepseek']);
+  assert.deepEqual(ids('email@Codex.com https://example.test/@Code'),[]);
+  assert.deepEqual(ids('@DeepSeek hello'),['deepseek']);
+  assert.equal(mentionSuggestions('@Codex',6,agents),null);
+  const named=[{id:'codex',name:'Jerry (Codex)'},{id:'claude',name:'Nara (Claude)'}];
+  assert.deepEqual(messageRecipients('Cek ya @Jerry, terus @Nara (Claude).',named).map(a=>a.id),['codex','claude']);
   assert.equal(selectRecipient('@DeepSeek hello',agents,'broadcast'),'hello');
-  assert.equal(selectRecipient('@DeepSeek hello',agents,'codex'),'@Codex hello');
+  assert.equal(selectRecipient('@DeepSeek hello',agents,'codex'),'@Codex @DeepSeek hello');
 });

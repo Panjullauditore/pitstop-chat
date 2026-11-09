@@ -10,11 +10,17 @@ export function detectAgents() {
   const codexScript = process.env.ROOM_CODEX_SCRIPT || join(process.env.APPDATA || join(home, 'AppData/Roaming'), 'npm/node_modules/@openai/codex/bin/codex.js');
   const agyPath = process.env.ROOM_AGY_PATH || join(process.env.LOCALAPPDATA || join(home, 'AppData/Local'), 'agy/bin/agy.exe');
   const claudeScript = join(process.env.APPDATA || join(home, 'AppData/Roaming'), 'npm/node_modules/@anthropic-ai/claude-code/cli.js');
-  const claudePath = process.env.ROOM_CLAUDE_PATH || join(home, '.local/bin/claude.exe');
+  const winGet = join(process.env.LOCALAPPDATA || join(home, 'AppData/Local'), 'Microsoft/WinGet');
+  const claudePath = process.env.ROOM_CLAUDE_PATH || [
+    join(home, '.local/bin/claude.exe'),
+    join(winGet, 'Links/claude.exe'),
+    join(winGet, 'Packages/Anthropic.ClaudeCode_Microsoft.Winget.Source_8wekyb3d8bbwe/claude.exe'),
+  ].find(existsSync);
+  const claudeInstalled = Boolean(claudePath && existsSync(claudePath));
   return {
     codex: { id: 'codex', name: 'Codex', installed: existsSync(codexScript), command: process.execPath, script: codexScript },
     antigravity: { id: 'antigravity', name: 'Antigravity', installed: existsSync(agyPath), command: agyPath },
-    claude: { id: 'claude', name: 'Claude', installed: existsSync(claudePath) || existsSync(claudeScript), command: existsSync(claudePath) ? claudePath : process.execPath, ...(!existsSync(claudePath) ? {script:claudeScript} : {}) },
+    claude: { id: 'claude', name: 'Claude', installed: claudeInstalled || existsSync(claudeScript), command: claudeInstalled ? claudePath : process.execPath, ...(!claudeInstalled ? {script:claudeScript} : {}) },
   };
 }
 
@@ -56,10 +62,10 @@ export function terminateTree(child) {
   });
 }
 
-export function buildAgentArgs(agent, definition, selection = {}, images = []) {
+export function buildAgentArgs(agent, definition, selection = {}, images = [], resumeSession) {
   const model=selection.cliModel ?? selection.model;
   const effort=selection.cliEffort ?? selection.effort;
-  if (agent === 'claude') return [...(definition.script ? [definition.script] : []), '-p', '--output-format', 'stream-json', ...(images.length ? ['--input-format','stream-json'] : []), '--verbose', '--include-partial-messages', '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--no-session-persistence', '--disable-slash-commands', ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : [])];
+  if (agent === 'claude') return [...(definition.script ? [definition.script] : []), '-p', '--output-format', 'stream-json', ...(images.length ? ['--input-format','stream-json'] : []), '--verbose', '--include-partial-messages', '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', ...(resumeSession ? ['--resume',resumeSession,'--setting-sources','','--settings','{"disableAllHooks":true}'] : ['--no-session-persistence']), '--disable-slash-commands', ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : [])];
   if (agent === 'codex') return [definition.script, 'exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--disable', 'shell_tool', '--disable', 'apps', '--disable', 'plugins', '--json', '--color', 'never',
     ...(model ? ['--model',model] : []), ...(effort ? ['-c',`model_reasoning_effort="${effort}"`] : []), ...images.flatMap(image=>['--image',image.path]), '-'];
   return ['--input-format', 'stream-json', '--output-format', 'stream-json', '--mode', 'plan', '--sandbox', '--disable-slash-commands',
@@ -82,12 +88,13 @@ export async function buildAgentInput(agent, prompt, images = []) {
   return prompt;
 }
 
-export async function runAgent(agent, prompt, { signal, onDelta = () => {}, onEvent=()=>{}, cwd, timeoutMs = 240_000, definitions = detectAgents(), selection = {}, images = [] } = {}) {
+export async function runAgent(agent, prompt, { signal, onDelta = () => {}, onEvent=()=>{}, cwd, timeoutMs = 240_000, definitions = detectAgents(), selection = {}, images = [], resumeSession } = {}) {
   const definition = definitions[agent];
   if (!definition?.installed) return Promise.reject(new Error(`${agent} CLI belum ditemukan. Lihat Pengaturan koneksi.`));
   if (signal?.aborted) return Promise.reject(new DOMException('Dihentikan', 'AbortError'));
-  const args = buildAgentArgs(agent,definition,selection,images);
+  const args = buildAgentArgs(agent,definition,selection,images,resumeSession);
   const input = await buildAgentInput(agent,prompt,images);
+  signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
     const child = spawn(definition.command, args, { cwd, windowsHide: true, shell: false, stdio: ['pipe', 'pipe', 'pipe'] });
     let finalText = '', partialText = '', agentError = '', stderr = '', settled = false, stopping = false, expired = false;

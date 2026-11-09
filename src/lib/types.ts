@@ -146,8 +146,14 @@ export interface LastRunState {
   at: string;
 }
 
-export interface ArchiveMemoryStatus {incorporated:boolean;incorporatedAt:string|null;deleteAt:string|null;}
+export interface ArchiveMemoryStatus {incorporated:boolean;reviewed:boolean;incorporatedAt:string|null;deleteAt:string|null;}
+export interface ProjectActivityData {
+  month: string;
+  days: Record<string, {messages:number; decisions:number}>;
+  lastUpdateDay: string | null;
+}
 export interface ProjectMemoryData extends SoulData {
+  activity?: ProjectActivityData;
   maxCharacters?:number;
   coreUpdatedAt?:string;
   summaryUpdatedAt?:string;
@@ -157,13 +163,23 @@ export interface ProjectMemoryData extends SoulData {
   scopeId: string; projectId: string | null; scopeName: string; shared: boolean; auto?: BrainSnapshot["auto"];
 }
 
+export interface QueuedChat {
+  id:string;
+  text:string;
+  attachmentIds:string[];
+  held?:boolean;
+  error?:string;
+}
+
 export interface RoomSnapshot {
+  chatQueue?: QueuedChat[];
   activeProjectId?: string|null;
   language?: 'en'|'id';
   webRequest?: {id:string;agentId:string;sessionId:string;prompt:string;attachments:{id:string;name:string}[];createdAt:string}|null;
   projectMemory?: ProjectMemoryData | null;
   projects?: ProjectData[];
   enabledAgentIds?: string[];
+  disabledBotIds?: string[];
   sessionId?: string;
   sessions?: SessionData[];
   messages: ChatMessage[];
@@ -214,4 +230,4 @@ export interface SessionData {
 
 export interface LinkedAppChat { remoteUrl?:string; transport?:string; id:string; title:string; cwd:string; source:string; state:string; linkedAt?:string; lastSyncedAt?:string; error?:string|null }
 
-export interface ProjectData { status?: "active"|"completed"; completedAt?: string; linkedApps?: Partial<Record<"codex"|"antigravity"|"deepseek",LinkedAppChat>>; managerId?: string; pendingDecision?: {id:string;question:string;raisedBy:string;sessionId:string;at:string}|null; decisions?: {id:string;text:string;question:string;at:string}[]; id: string; name: string; agentIds: string[]; createdAt: string }
+export interface ProjectData { status?: "active"|"completed"; completedAt?: string; linkedApps?: Partial<Record<"codex"|"claude"|"antigravity"|"deepseek",LinkedAppChat>>; managerId?: string; pendingDecision?: {id:string;question:string;raisedBy:string;sessionId:string;at:string}|null; decisions?: {id:string;text:string;question:string;at:string}[]; id: string; name: string; agentIds: string[]; createdAt: string }

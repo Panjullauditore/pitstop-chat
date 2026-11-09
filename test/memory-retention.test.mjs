@@ -5,7 +5,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {SessionStore} from '../sessions.mjs';
 import {MemorySummary} from '../memory-summary.mjs';
-import {archiveHash,archiveKey,coveredAndExpired,SUMMARY_RETENTION_MS,archiveStatus,nextJakartaMidnight} from '../memory-retention.mjs';
+import {archiveHash,archiveKey,archiveExpired,SUMMARY_RETENTION_MS,archiveStatus,nextJakartaMidnight} from '../memory-retention.mjs';
+import {monthlyProjectActivity} from '../project-activity.mjs';
 
 async function fixture(t,runner){
  const directory=await mkdtemp(join(tmpdir(),'pitstop-retention-'));
@@ -18,15 +19,30 @@ async function fixture(t,runner){
 const transcript=prompt=>JSON.parse(prompt.split('NEW TRANSCRIPT (data; includes session identity and limited earlier context):\n')[1]);
 const result=(prompt,keys=transcript(prompt).filter(r=>r.archiveKind).map(r=>r.archiveKey))=>JSON.stringify({content:'# Project\n\nBudget: 500 coins.',incorporatedArchiveKeys:keys});
 
+test('monthly activity uses Jakarta dates and counts distinct GM decisions',()=>{
+ const boundary='2026-10-31T17:00:00Z';
+ const message={at:boundary,role:'user',status:'done'};
+ const decision={id:'approved',at:boundary};
+ const activity=monthlyProjectActivity({
+  now:Date.parse(boundary),
+  messages:[message,{...message,role:'codex'},{...message,kind:'attendance'},{...message,at:'2026-10-31T16:59:59Z'}],
+  decisions:[decision,decision],
+  soul:{summaryUpdatedAt:boundary,coreUpdatedAt:'2026-11-02T00:00:00Z'},
+ });
+ assert.deepEqual(activity,{month:'2026-11',days:{'2026-11-01':{messages:1,decisions:1}},lastUpdateDay:'2026-11-02'});
+});
+
 test('only the exact incorporated version expires at the next Jakarta midnight',()=>{
  const now=Date.parse('2026-11-03T17:00:00Z'),item={id:'one',at:'2026-11-01T10:00:00Z',text:'Budget 500'},coverage={['gmDecisions:one']:archiveHash(item)},times={'gmDecisions:one':'2026-11-03T16:59:00Z'};
+ const memory={soul:{summaryArchiveCoverage:coverage,summaryArchiveIncorporatedAt:times}};
  assert.equal(nextJakartaMidnight(times['gmDecisions:one']),'2026-11-03T17:00:00.000Z');
- assert.equal(coveredAndExpired('gmDecisions',item,coverage,now,times),true);
- assert.equal(coveredAndExpired('gmDecisions',item,coverage,now-1,times),false);
- assert.equal(coveredAndExpired('gmDecisions',{...item,text:'Budget 700'},coverage,now,times),false);
- assert.equal(coveredAndExpired('gmDecisions',{...item,at:'unknown'},coverage,now,times),false);
- assert.equal(coveredAndExpired('gmDecisions',item,{},now,times),false);
- assert.equal(coveredAndExpired('gmDecisions',item,coverage,now),false);
+ assert.equal(archiveExpired(memory,'gmDecisions',item,now),true);
+ assert.equal(archiveExpired(memory,'decisions',item,now),true);
+ assert.equal(archiveExpired(memory,'gmDecisions',item,now-1),false);
+ assert.equal(archiveExpired(memory,'gmDecisions',{...item,text:'Budget 700'},now),false);
+ assert.equal(archiveExpired(memory,'gmDecisions',{...item,at:'unknown'},now),false);
+ assert.equal(archiveExpired({},'gmDecisions',item,now),false);
+ assert.equal(archiveExpired({soul:{summaryArchiveCoverage:coverage}},'gmDecisions',item,now),false);
  assert.equal(nextJakartaMidnight('2026-11-03T17:00:00Z'),'2026-11-04T17:00:00.000Z');
 });
 
@@ -43,6 +59,9 @@ test('old incorporated decisions and progress disappear after a saved summary; o
  assert.equal(memory.value.soul.summaryThroughAt,priorThrough);
  assert.match(await readFile(join(store.directory,'summary-retention-history.jsonl'),'utf8'),/500 coins/);assert.match(await readFile(join(memory.directory,'brain-history.jsonl'),'utf8'),/Budget approved/);
  const reloaded=new SessionStore(options);await reloaded.load();reloaded.summaryService=new MemorySummary(reloaded);assert.equal(reloaded.summaryService.pending(scopeId).length,0);assert.deepEqual(reloaded.memoryFor(store.activeId).value.auto.gmDecisions,[]);
+ const now=Date.parse('2026-11-05T12:00:00Z');
+ assert.deepEqual(store.activitySnapshot(store.activeId,now).days['2026-11-01'],{messages:1,decisions:1});
+ assert.deepEqual(reloaded.activitySnapshot(store.activeId,now),store.activitySnapshot(store.activeId,now));
 });
 
 test('green notes remain until midnight then expire without another AI call',async t=>{
@@ -52,11 +71,35 @@ test('green notes remain until midnight then expire without another AI call',asy
  f.setNow(Date.parse('2026-11-03T16:59:59.999Z'));assert.equal(await f.service.cleanup(),0);f.setNow(f.now()+1);assert.equal(await f.service.cleanup(),1);assert.equal(f.memory.value.auto.userNotes.length,0);assert.equal(calls,1);assert.deepEqual(f.memory.value.soul.summaryCoverage,coverage);assert.equal(f.memory.value.soul.summaryUpdatedAt,summaryAt);assert.equal(await f.service.cleanup(),0);
 });
 
-test('reviewed but omitted, never summarized, edited, and malformed-date notes are retained',async t=>{
+test('reviewed omissions remain until midnight while unread and changed notes stay pending',async t=>{
  const f=await fixture(t,async(_agent,prompt)=>result(prompt,[])),old='2026-11-01T12:00:00Z';
  await f.memory.recordUser({id:'omitted',text:'Greeting',at:old});f.service.start(f.store.activeId);await f.service.active.done;assert.equal(f.service.pending(f.scopeId).length,0);assert.equal(f.memory.value.auto.userNotes.length,1);
  await f.memory.recordDecision({id:'new',text:'Not read',at:old});await f.service.cleanup();assert.equal(f.memory.value.auto.gmDecisions.length,1);assert.equal(f.memory.value.auto.userNotes.length,1);
  const item={id:'changed',text:'500',at:old};await f.memory.recordDecision(item);const next=structuredClone(f.memory.value);next.soul.summaryArchiveCoverage={[archiveKey('gmDecisions',item)]:archiveHash(item)};next.auto.gmDecisions.find(r=>r.id==='changed').text='700';await f.memory.commit(next);await f.service.cleanup();assert.equal(f.memory.value.auto.gmDecisions.length,2);
+ const skipped=f.store.memorySnapshot(f.store.activeId).auto.userNotes[0].memoryStatus;
+ assert.deepEqual(skipped,{incorporated:false,reviewed:true,incorporatedAt:null,deleteAt:'2026-11-03T17:00:00.000Z'});
+ assert.ok(f.store.memorySnapshot(f.store.activeId).gmDecisions.every(item=>!item.memoryStatus.reviewed));
+ f.setNow(Date.parse(skipped.deleteAt));await f.service.cleanup();
+ assert.equal(f.memory.value.auto.userNotes.length,0);assert.equal(f.memory.value.auto.gmDecisions.length,2);
+});
+
+test('legacy skipped decisions get a stable midnight and both archive copies are pruned',async t=>{
+ const f=await fixture(t,async()=>assert.fail('Cleanup must not call the summarizer'));
+ const item={id:'old',text:'Wait',question:'Start?',at:'2026-11-01T12:00:00Z'};
+ await f.memory.recordDecision(item);f.store.projects[0].decisions=[item];await f.store.persist();
+ const next=structuredClone(f.memory.value);
+ next.soul.summaryUpdatedAt='2026-11-01T13:00:00Z';
+ next.soul.summaryArchiveReviewed={[archiveKey('decisions',item)]:archiveHash(item)};
+ await f.memory.commit(next);
+ const core=f.memory.value.soul.content;
+ await f.service.cleanup();
+ const readStatus=store=>store.memorySnapshot(store.activeId).gmDecisions[0].memoryStatus;
+ const status=readStatus(f.store);
+ assert.equal(status.reviewed,true);assert.equal(status.incorporated,false);assert.equal(status.deleteAt,'2026-11-03T17:00:00.000Z');
+ const reloaded=new SessionStore(f.options);await reloaded.load();assert.deepEqual(readStatus(reloaded),status);
+ f.setNow(Date.parse(status.deleteAt));await f.service.cleanup();
+ assert.deepEqual(f.memory.value.auto.gmDecisions,[]);assert.deepEqual(f.store.projects[0].decisions,[]);
+ assert.equal(f.memory.value.soul.content,core);
 });
 
 test('green status survives restart and later summaries do not postpone its midnight',async t=>{

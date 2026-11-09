@@ -1,6 +1,7 @@
 import {MAX_MEMORY_CHARACTERS} from './src/lib/memory-limits.mjs';
 export const AUTO_MARKER = '<!-- PITLANE_AUTO_MEMORY -->';
 export const POLICY_MARKER = '## Gaya diskusi dan memori otomatis';
+export const TEAM_AUTONOMY_POLICY = 'Address routine questions, reviews, and differences of opinion to the other agents first. The team may continue without the General Manager while working within the authorized scope. Set needsUser=true only when an essential decision or approval belongs to the GM and the affected work genuinely cannot proceed safely without it. Address the GM directly with one concise question, why it blocks progress, and the recommended option. A disagreement by itself is not a reason to stop. Never treat silence as approval.';
 export const COMMUNICATION_POLICY = `${POLICY_MARKER}
 - Jawab langsung ke inti, biasanya 2–4 kalimat dan maksimal sekitar 75 kata. Jangan mengulang konteks, pujian, atau kesimpulan yang sama. Lebih panjang hanya jika user memintanya.
 - AI menentukan apakah diskusi masih perlu dilanjutkan. Berhenti ketika sepakat, tidak ada tambahan berguna, atau perlu keputusan user. User tidak perlu mengatur jumlah putaran.
@@ -28,8 +29,8 @@ export function parseReply(text) {
     const value=JSON.parse(match[1]);
     if(typeof value.continue==='boolean' && typeof value.needsUser==='boolean'){
       const short=(key,max)=>typeof value[key]==='string' ? value[key].trim().slice(0,max) : '';
-      control={continue:value.continue,needsUser:value.needsUser,summary:short('summary',260),next:short('next',160),reportedProgress:short('reportedProgress',240)};
-      if(value.disagreement===true){control.disagreement=true;control.needsUser=true;control.continue=false;}
+      control={continue:value.continue&&!value.needsUser,needsUser:value.needsUser,summary:short('summary',260),next:short('next',160),reportedProgress:short('reportedProgress',240)};
+      if(value.disagreement===true)control.disagreement=true;
       if(typeof value.question==='string')control.question=short('question',1000);
       const memory=value.projectMemory;
       if(memory&&Number.isInteger(memory.baseRevision)&&memory.baseRevision>0&&typeof memory.content==='string'&&memory.content.trim()&&memory.content.length<=MAX_MEMORY_CHARACTERS&&!memory.content.includes(AUTO_MARKER)){

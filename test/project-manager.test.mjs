@@ -34,9 +34,21 @@ test('PM receives team responses last and only PM publishes project checkpoints'
   calls.length=0;await store.room.send({text:'Ask the architect.',mode:'antigravity'});await store.room.run.done;
   assert.deepEqual(calls.map(c=>c.agent),['antigravity']);
 });
-test('disagreement immediately stops the team and persists across sessions/restart until explicit GM decision',async t=>{
+test('routine disagreement continues without waiting for the GM',async t=>{
+  const calls=[];
+  const {store}=await setup(t,async agent=>{
+    calls.push(agent);
+    return reply('Compare reversible options.',{disagreement:calls.length===1,continue:calls.length===1});
+  });
+  await store.createProject({name:'Team review',managerId:'codex',agentIds:['antigravity']});
+  await store.room.send({text:'Compare both options.',mode:'discussion'});await store.room.run.done;
+  assert.deepEqual(calls,['antigravity','codex','antigravity','codex']);
+  assert.equal(store.projects[0].pendingDecision,null);
+  assert.equal(store.room.lastRun.reason,'consensus');
+});
+test('an explicit GM decision request pauses the team and survives restart',async t=>{
   let debate=true;const calls=[];
-  const {store,options}=await setup(t,async(agent,prompt)=>{calls.push({agent,prompt});return debate?reply('PM and team disagree about the schedule.',{disagreement:true,question:'Keep scope or extend the schedule?'}):reply('Follow GM decision.');});
+  const {store,options}=await setup(t,async(agent,prompt)=>{calls.push({agent,prompt});return debate?reply('PM and team disagree about the schedule.',{disagreement:true,needsUser:true,question:'Keep scope or extend the schedule?'}):reply('Follow GM decision.');});
   await store.createProject({name:'Debate project',managerId:'codex',agentIds:['antigravity','claude']});
   const projectId=store.projects[0].id;
   await store.room.send({text:'Review the timeline.',mode:'discussion'});await store.room.run.done;
@@ -70,13 +82,21 @@ test('an unavailable PM fails honestly instead of publishing another agent as ma
 test('a DeepSeek mention routes only to DeepSeek, even with a Codex PM and a broadcast mode',async t=>{
   const calls=[];const {store}=await setup(t,async agent=>{calls.push(agent);return reply('Directed reply');});
   store.agents.deepseek={id:'deepseek',name:'DeepSeek Web',installed:true,transport:'browser-web'};
-  await store.createProject({name:'Directed messages',managerId:'codex',agentIds:['deepseek']});
+  await store.createProject({name:'Directed messages',managerId:'codex',agentIds:['deepseek','antigravity']});
   store.room.accounts.codex={connected:false};
   const before=store.memoryFor(store.activeId).snapshot().auto.updates.length;
   await store.room.send({text:'@DeepSeek hello',mode:'discussion'});await store.room.run.done;
   assert.deepEqual(calls,['deepseek']);assert.equal(store.room.messages.at(-1).role,'deepseek');
   assert.equal(store.memoryFor(store.activeId).snapshot().auto.updates.length,before);
   calls.length=0;await store.room.send({text:'@DeepSeek Web review this',mode:'codex'});await store.room.run.done;assert.deepEqual(calls,['deepseek']);
+  calls.length=0;
+  await store.room.send({text:'Please ask @DeepSeek, then @Antigravity. Thanks @DeepSeek!',mode:'discussion'});
+  await store.room.run.done;
+  assert.deepEqual(calls,['deepseek','antigravity']);
+  calls.length=0;
+  await store.setBotEnabled('antigravity',false);
+  await assert.rejects(store.room.send({text:'Ask @DeepSeek and @Antigravity',mode:'discussion'}),/sedang Off/);
+  assert.deepEqual(calls,[]);
   await assert.rejects(store.room.send({text:'Ask all agents',mode:'discussion'}),/Project Manager belum tersambung/);
 });
 

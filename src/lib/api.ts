@@ -27,7 +27,7 @@ export async function fetchBootstrap(): Promise<BootstrapResponse> {
 export async function sendChat(
   input: { text: string; mode?: string; syncMemory?: boolean; sessionId?: string; attachmentIds?: string[]; decisionId?: string },
   token: string
-): Promise<{ runId: string }> {
+): Promise<{ runId: string | null; queuedId?: string }> {
   const res = await fetch("/api/send", {
     method: "POST",
     headers: {
@@ -61,6 +61,16 @@ export async function stopChat(token: string): Promise<{ stopped: boolean }> {
   return data;
 }
 
+export async function updateChatQueue(token:string,sessionId:string,id:string,action:'hold'|'edit'|'resume'|'cancel',text?:string) {
+  const res=await fetch('/api/chat-queue',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-Room-Token':token,'X-Room-Session':sessionId},
+    body:JSON.stringify({sessionId,id,action,text}),
+  });
+  const data=await res.json();
+  if(!res.ok)throw new ApiError(data.error||'Gagal memperbarui antrean.',res.status);
+}
+
 export async function uploadChatFile(file: File, token: string, sessionId: string): Promise<ChatAttachment> {
   const res = await fetch('/api/attachments', {
     method: 'POST',
@@ -70,6 +80,17 @@ export async function uploadChatFile(file: File, token: string, sessionId: strin
   const data = await res.json();
   if (!res.ok) throw new ApiError(data.error || 'File gagal diunggah.', res.status);
   return data.attachment;
+}
+
+export async function setBotPower(token: string, agent: string, enabled: boolean): Promise<string[]> {
+  const res = await fetch("/api/agents/power", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Room-Token": token },
+    body: JSON.stringify({ agent, enabled }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new ApiError(data.error || "Gagal mengubah akses chat bot.", res.status);
+  return data.disabledBotIds;
 }
 
 export async function checkAgentConnections(token:string,agent?:string):Promise<{sessionId:string;agents:AgentDefinition[];checkedAt:string;browser:{request?:{phase:string}|null}}> {

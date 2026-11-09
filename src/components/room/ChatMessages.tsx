@@ -10,6 +10,7 @@ import {
   Bookmark,
   Check,
   Copy,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { pinChatMessage } from "@/lib/api";
@@ -27,6 +28,7 @@ interface ChatMessagesProps {
   pinnedIds?: string[];
   onPromptSelected: (promptText: string) => void;
   onMessagePinned?: (messageId: string) => void;
+  onJumpToLatest?: () => void;
 }
 
 export function ChatMessages({
@@ -42,33 +44,49 @@ export function ChatMessages({
   pinnedIds = [],
   onPromptSelected,
   onMessagePinned,
+  onJumpToLatest,
 }: ChatMessagesProps) {
   const {t}=useI18n();
   const messageRefs = useRef(new Map<string,HTMLDivElement>());
   const highlight = (text:string) => <HighlightMatch text={text} query={searchTarget?.query || ""}/>;
   const followTail=useRef(true);
   const previousSearch=useRef(false);
-  const lastUserMessageId=useRef<string|undefined>(undefined);
   const previousScrollRequest=useRef(scrollRequest);
+  const lastAnimatedTail=useRef<string|null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [showJump,setShowJump]=useState(false);
   const [copiedSnippetIdx, setCopiedSnippetIdx] = useState<string | null>(null);
   const userInitial = Array.from(currentUserName)[0]?.toLocaleUpperCase("id-ID") || "U";
 
   useLayoutEffect(() => {
     const el = containerRef.current;
-    const latestUser=messages.findLast(message=>message.role==='user');
-    if(latestUser?.id!==lastUserMessageId.current||scrollRequest!==previousScrollRequest.current)followTail.current=true;
-    lastUserMessageId.current=latestUser?.id;
+    if(scrollRequest!==previousScrollRequest.current)followTail.current=true;
     previousScrollRequest.current=scrollRequest;
     if (el && !searchTarget && (followTail.current || previousSearch.current)) {
       followTail.current=true;
       el.scrollTop = el.scrollHeight;
     }
+    if(el)setShowJump(el.scrollHeight-el.scrollTop-el.clientHeight>=96);
+    const previousTail=lastAnimatedTail.current;
+    const latest=messages.at(-1)?.id||null;
+    lastAnimatedTail.current=latest;
+    if(previousTail&&latest!==previousTail&&followTail.current&&!searchTarget&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      const previousIndex=messages.findLastIndex(message=>message.id===previousTail);
+      if(previousIndex>=0)for(const message of messages.slice(Math.max(previousIndex+1,messages.length-3))){
+        messageRefs.current.get(message.id)?.animate([
+          {opacity:.42,transform:message.role==='user'?'translateX(8px)':'translateX(-8px)'},
+          {opacity:1,transform:'translateX(0)'},
+        ],{duration:220,easing:'cubic-bezier(.16,1,.3,1)'});
+      }
+    }
     previousSearch.current=Boolean(searchTarget);
   }, [messages,searchTarget,scrollRequest]);
   useEffect(()=>{
     const el=containerRef.current;if(!el)return;
-    const observer=new ResizeObserver(()=>{if(followTail.current&&!searchTarget)el.scrollTop=el.scrollHeight;});
+    const observer=new ResizeObserver(()=>{
+      if(followTail.current&&!searchTarget)el.scrollTop=el.scrollHeight;
+      setShowJump(el.scrollHeight-el.scrollTop-el.clientHeight>=96);
+    });
     observer.observe(el);if(el.firstElementChild)observer.observe(el.firstElementChild);
     return()=>observer.disconnect();
   },[messages.length>0,searchTarget]);
@@ -207,10 +225,11 @@ export function ChatMessages({
     return role;
   };
 
-  if (!messages.length) return <ChatWelcome onPromptSelected={onPromptSelected}/>;
+  if (!messages.length) return <ChatWelcome onPromptSelected={onPromptSelected} agents={agents}/>;
 
   return (
-    <div ref={containerRef} onScroll={event=>{const el=event.currentTarget;followTail.current=el.scrollHeight-el.scrollTop-el.clientHeight<96;}} className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6 custom-scrollbar">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div ref={containerRef} onScroll={event=>{const el=event.currentTarget;followTail.current=el.scrollHeight-el.scrollTop-el.clientHeight<96;setShowJump(!followTail.current);}} className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6 custom-scrollbar">
       <div className="w-full space-y-8">
         {          messages.map((message) => {
             const isUser = message.role === "user";
@@ -226,7 +245,7 @@ export function ChatMessages({
             if (isUser) {
               return (
                 <div key={message.id} data-message-id={message.id} tabIndex={-1} ref={node=>{if(node)messageRefs.current.set(message.id,node);else messageRefs.current.delete(message.id);}} className={`flex gap-3 justify-end items-start group rounded-xl scroll-mt-6 ${searchTarget?.messageId===message.id?'ring-2 ring-primary ring-offset-4 ring-offset-background':''}`}>
-                  <div className="flex min-w-0 flex-col items-end max-w-[calc(100%-44px)] sm:max-w-[min(80%,760px)]">
+                  <div className="flex min-w-0 flex-col items-end max-w-[calc(100%-68px)] sm:max-w-[min(80%,760px)]">
                     <div className="flex flex-wrap justify-end items-center gap-x-2 gap-y-1 mb-2 px-1">
                       <span className="text-xs font-mono font-semibold text-brand-yellow uppercase">{currentUserName}</span>
                       <span className="text-[10px] font-mono text-muted-foreground uppercase">{managerId?'General Manager':t("Pengguna")}</span>
@@ -237,8 +256,8 @@ export function ChatMessages({
                       {message.text&&<p className="whitespace-pre-wrap leading-relaxed">{highlight(message.text)}</p>}
                     </div>
                   </div>
-                  <div className="w-8 h-8 rounded-md bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-xs text-primary shrink-0">
-                    {avatar?<img src={avatar} alt={t("Foto profil")} className="h-full w-full rounded-md object-cover"/>:userInitial}
+                  <div className="size-14 sm:size-16 overflow-hidden rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-lg text-primary shrink-0">
+                    {avatar?<img src={avatar} alt={t("Foto profil")} className="h-full w-full object-cover"/>:userInitial}
                   </div>
                 </div>
               );
@@ -250,9 +269,9 @@ export function ChatMessages({
               <div key={message.id} data-message-id={message.id} tabIndex={-1} ref={node=>{if(node)messageRefs.current.set(message.id,node);else messageRefs.current.delete(message.id);}} className={`flex gap-3 items-start group rounded-xl scroll-mt-6 ${searchTarget?.messageId===message.id?'ring-2 ring-primary ring-offset-4 ring-offset-background':''}`}>
                 {/* Agent Avatar */}
                 <div
-                  className={`w-8 h-8 rounded-md ${agentMeta.bg} border flex items-center justify-center font-bold text-xs font-mono shrink-0 mt-1 shadow-sm`}
+                  className={`size-14 sm:size-16 overflow-hidden rounded-lg ${agentMeta.bg} border flex items-center justify-center font-bold text-lg font-mono shrink-0 mt-1 shadow-sm`}
                 >
-                  {agents.find(agent=>agent.id===message.role)?.avatar ? <img src={agents.find(agent=>agent.id===message.role)?.avatar} alt="" className="w-full h-full rounded-md object-cover"/> : agentMeta.code}
+                  {agents.find(agent=>agent.id===message.role)?.avatar ? <img src={agents.find(agent=>agent.id===message.role)?.avatar} alt="" className="w-full h-full object-cover"/> : agentMeta.code}
                 </div>
 
                 {/* Message Body */}
@@ -344,6 +363,15 @@ export function ChatMessages({
           })
         }
       </div>
+    </div>
+    {showJump&&<button type="button" aria-label={t('Ke pesan terbaru')} title={t('Ke pesan terbaru')} onClick={()=>{
+      const el=containerRef.current;
+      if(!el)return;
+      followTail.current=true;
+      el.scrollTop=el.scrollHeight;
+      setShowJump(false);
+      onJumpToLatest?.();
+    }} className="pitstop-action pitstop-jump-latest absolute bottom-3 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan sm:right-6"><ChevronDown className="h-5 w-5" aria-hidden="true"/></button>}
     </div>
   );
 }

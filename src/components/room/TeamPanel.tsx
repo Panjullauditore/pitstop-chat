@@ -2,7 +2,7 @@
 import {useI18n} from "@/lib/i18n";
 
 import React, {useState} from "react";
-import {checkAgentConnections} from '@/lib/api';
+import {checkAgentConnections,setBotPower} from '@/lib/api';
 import {toast} from 'sonner';
 import { AgentDefinition, AgentQuotaStatus, LinkedAppChat } from "@/lib/types";
 import { AgentQuotaIndicator } from "./AgentQuotaIndicator";
@@ -30,6 +30,8 @@ interface TeamPanelProps {
   onClose: () => void;
   onOpen: () => void;
   agents: AgentDefinition[];
+  disabledBotIds: string[];
+  onBotPowerChanged: (disabledBotIds: string[]) => void;
   quotaMap: Record<string, AgentQuotaStatus>;
   token: string;
   projectName?: string;
@@ -51,6 +53,8 @@ export function TeamPanel({
   onClose,
   onOpen,
   agents,
+  disabledBotIds,
+  onBotPowerChanged,
   quotaMap,
   token,
   projectName,
@@ -68,6 +72,17 @@ export function TeamPanel({
   const {t}=useI18n();
   const [checking,setChecking]=useState<string|null>(null);
   const [checkMessage,setCheckMessage]=useState('');
+  const [savingPower,setSavingPower]=useState(false);
+  const toggleBot=async(agentId:string)=>{
+    setSavingPower(true);
+    try {
+      onBotPowerChanged(await setBotPower(token,agentId,disabledBotIds.includes(agentId)));
+    } catch(error) {
+      toast.error(t('Gagal mengubah akses chat bot.'),{description:error instanceof Error?t(error.message):undefined});
+    } finally {
+      setSavingPower(false);
+    }
+  };
   const checkConnections=async(agentId?:string)=>{
     if(checking)return;
     setChecking(agentId||'all');setCheckMessage('');
@@ -111,7 +126,7 @@ export function TeamPanel({
     <aside aria-label={t("Tim Agent")} aria-hidden={!isOpen} inert={!isOpen} data-open={isOpen} className="pitlane-team-panel fixed xl:absolute inset-y-0 right-0 z-50 w-[320px] max-w-[88vw] bg-rail border-l border-border/60 flex flex-col">
       <div className="h-[76px] px-4 flex items-center justify-between gap-2 shrink-0 border-b border-border"><div className="min-w-0"><h2 className="flex items-center gap-2 font-mono text-[11px] uppercase font-semibold whitespace-nowrap">{connectedCount?<LiveDot/>:<span className="h-2 w-2 rounded-full shrink-0 bg-brand-yellow"/>}{t("Tim Agent")}</h2><p className="mt-1.5 font-mono text-[9px] uppercase text-muted-foreground">{connectedCount} {t(" terhubung")} · {standbyCount} {t(" belum terhubung")}{manualCount>0&&` · ${manualCount} web manual`}</p></div><div className="flex items-center shrink-0 gap-1"><button type="button" aria-label={t("Tambah agent")} onClick={onOpenAddAgent} className="h-8 px-2 rounded border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 flex items-center gap-1 text-[10px] font-mono uppercase"><Plus className="w-3 h-3"/><span>Agent</span></button><button type="button" onClick={onClose} aria-label={t("Tutup panel tim")} title={t("Tutup panel tim")} className="h-8 w-6 rounded hover:bg-secondary flex items-center justify-center"><PanelRightClose className="w-3.5 h-3.5"/></button></div></div>
       <div className="border-b border-border px-3 py-2.5 space-y-2"><button type="button" onClick={()=>void checkConnections()} disabled={!!checking||!token||!agents.length} className="inline-flex min-h-8 items-center gap-2 rounded-md px-2 text-xs text-muted-foreground hover:bg-secondary hover:text-brand-cyan disabled:opacity-50"><RefreshCw className={'h-3.5 w-3.5 '+(checking?'animate-spin':'')}/>{checking?t('Memeriksa koneksi…'):t('Periksa semua koneksi')}</button><p role="status" className="text-[11px] leading-5 text-muted-foreground">{checkMessage}</p></div>
-      <div className="flex-1 overflow-y-auto px-3 py-4 min-h-0 space-y-3">{agents.map(agent=><AgentCard linkedApp={linkedApps?.[agent.id]} key={agent.id} agent={agent} checkingConnection={!!checking} onCheckConnection={()=>void checkConnections(agent.id)} isManager={agent.id===managerId} quotaStatus={quotaMap[agent.id]} isBusy={busySpeaker===agent.id} token={token} onOpenReconnect={onOpenReconnect} onOpenProfile={()=>onOpenAgentProfile(agent)} onQuotaUpdated={onQuotaUpdated}/>)}{!agents.length&&<p className="py-6 px-1 text-sm text-muted-foreground">{t("Belum ada agent dalam sesi ini. Atur peserta melalui menu chat.")}</p>}</div>
+      <div className="flex-1 overflow-y-auto px-3 py-4 min-h-0 space-y-3">{agents.map(agent=><AgentCard linkedApp={linkedApps?.[agent.id]} key={agent.id} agent={agent} chatEnabled={!disabledBotIds.includes(agent.id)} powerDisabled={savingPower||!token} onTogglePower={()=>void toggleBot(agent.id)} checkingConnection={!!checking} onCheckConnection={()=>void checkConnections(agent.id)} isManager={agent.id===managerId} quotaStatus={quotaMap[agent.id]} isBusy={busySpeaker===agent.id} token={token} onOpenReconnect={onOpenReconnect} onOpenProfile={()=>onOpenAgentProfile(agent)} onQuotaUpdated={onQuotaUpdated}/>)}{!agents.length&&<p className="py-6 px-1 text-sm text-muted-foreground">{t("Belum ada agent dalam sesi ini. Atur peserta melalui menu chat.")}</p>}</div>
       <div className="p-3 border-t border-border/60 space-y-3 shrink-0"><button type="button" onClick={onOpenSoulMemory} className="w-full text-left rounded-xl border border-border/80 bg-card p-3.5 hover:border-brand-cyan/50 transition-colors"><span className="flex items-center justify-between text-sm font-semibold"><span className="flex items-center gap-2"><Building className="w-4 h-4 text-brand-cyan"/>Project Memory</span><ExternalLink className="w-3.5 h-3.5 text-muted-foreground"/></span><span className="mt-3 block rounded border border-border/70 bg-background px-2.5 py-2 text-xs truncate" title={projectName}>{projectName || t("Memori chat ini")}</span><span className="mt-2 block rounded border border-border/70 bg-background px-2.5 py-2 text-[11px] text-muted-foreground line-clamp-2 leading-5">{sessionSummary || t("Belum ada checkpoint diskusi.")}</span><span className="mt-3 block rounded border border-border bg-secondary py-2 text-center font-mono text-[10px] uppercase text-foreground">{t("Buka memori")}</span></button><div className="flex gap-2"><Button variant="outline" size="sm" onClick={onOpenAttendance} className="flex-1 text-xs gap-1.5"><UserCheck className="h-3.5 w-3.5"/>{t("Absen tim")}</Button></div></div>
     </aside>
     </div></div>

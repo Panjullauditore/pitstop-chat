@@ -3,7 +3,7 @@ import { readFile, writeFile, rename, mkdir, appendFile } from 'node:fs/promises
 import { join } from 'node:path';
 import { composeSoul, stripAutomaticMemory, COMMUNICATION_POLICY, POLICY_MARKER } from './protocol.mjs';
 import {soulWithLanguage} from './src/lib/language.mjs';
-import {coveredAndExpired} from './memory-retention.mjs';
+import {archiveExpired} from './memory-retention.mjs';
 import {DEFAULT_MEMORY_CHARACTERS,memoryCharacterLimit,validMemoryLimit} from './src/lib/memory-limits.mjs';
 
 export class Brain extends EventEmitter {
@@ -72,16 +72,20 @@ export class Brain extends EventEmitter {
     const next=structuredClone(this.value),at=new Date(now).toISOString();
     const incorporationTimes={...(next.soul.summaryArchiveIncorporatedAt||{})};
     for(const [key,hash] of Object.entries(archiveCoverage||{}))if(!incorporationTimes[key]||next.soul.summaryArchiveCoverage?.[key]!==hash)incorporationTimes[key]=at;
-    next.soul={...next.soul,content:content.trim(),revision:revision+1,updatedAt:at,coreUpdatedAt:at,summaryUpdatedAt:at,summaryThroughAt:throughAt,summaryCoverage:coverage,summaryArchiveCoverage:archiveCoverage||next.soul.summaryArchiveCoverage||{},summaryArchiveReviewed:archiveReviewed||next.soul.summaryArchiveReviewed||{},summaryArchiveIncorporatedAt:incorporationTimes,summarySource:{agent:agentId,kind:'summary'}};
+    const reviewTimes={...next.soul.summaryArchiveReviewedAt};
+    for(const [key,hash] of Object.entries(archiveReviewed||{}))if(next.soul.summaryArchiveReviewed?.[key]!==hash)reviewTimes[key]=at;
+    next.soul={...next.soul,content:content.trim(),revision:revision+1,updatedAt:at,coreUpdatedAt:at,summaryUpdatedAt:at,summaryThroughAt:throughAt,summaryCoverage:coverage,summaryArchiveCoverage:archiveCoverage||next.soul.summaryArchiveCoverage||{},summaryArchiveReviewed:archiveReviewed||next.soul.summaryArchiveReviewed||{},summaryArchiveReviewedAt:reviewTimes,summaryArchiveIncorporatedAt:incorporationTimes,summarySource:{agent:agentId,kind:'summary'}};
     return this.commit(next);
   });}
   pruneSummaryArchive(now=Date.now()){return this.enqueue(async()=>{
     const next=structuredClone(this.value);let removed=0;
+    // Give older omitted rows one midnight of visibility under the new policy.
+    const migrate=!next.soul.legacyArchiveReviewAt&&Object.keys(next.soul.summaryArchiveReviewed||{}).some(key=>!next.soul.summaryArchiveReviewedAt?.[key]&&next.soul.summaryArchiveReviewed[key]!==next.soul.summaryArchiveCoverage?.[key]);
+    if(migrate)next.soul.legacyArchiveReviewAt=new Date(now).toISOString();
     for(const kind of ['gmDecisions','userNotes','updates'])if(next.auto?.[kind]){
-      const times=Object.fromEntries(Object.keys(next.soul.summaryArchiveCoverage||{}).map(key=>[key,next.soul.summaryArchiveIncorporatedAt?.[key]||next.soul.summaryUpdatedAt]));
-      const kept=next.auto[kind].filter(item=>!coveredAndExpired(kind,item,next.soul.summaryArchiveCoverage,now,times));removed+=next.auto[kind].length-kept.length;next.auto[kind]=kept;
+      const kept=next.auto[kind].filter(item=>!archiveExpired(next,kind,item,now));removed+=next.auto[kind].length-kept.length;next.auto[kind]=kept;
     }
-    if(!removed)return 0;
+    if(!removed&&!migrate)return 0;
     // Activity revision changes; core edit time and message coverage stay untouched.
     next.soul.revision++;await this.commit(next);return removed;
   });}

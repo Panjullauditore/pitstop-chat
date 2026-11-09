@@ -12,6 +12,9 @@ import { Cpu, RefreshCw, Settings } from "lucide-react";
 interface AgentCardProps {
   linkedApp?:LinkedAppChat;
   agent: AgentDefinition;
+  chatEnabled: boolean;
+  powerDisabled: boolean;
+  onTogglePower: () => void;
   quotaStatus?: AgentQuotaStatus;
   isBusy?: boolean;
   isManager?: boolean;
@@ -26,6 +29,9 @@ interface AgentCardProps {
 export function AgentCard({
   linkedApp,
   agent,
+  chatEnabled,
+  powerDisabled,
+  onTogglePower,
   quotaStatus,
   isBusy = false,
   isManager = false,
@@ -58,6 +64,19 @@ export function AgentCard({
           <p className="mt-1.5 text-[10px] font-mono leading-4 text-muted-foreground truncate">{isManager?<span className="text-brand-cyan">Project Manager</span>:agent.role||'AI agent'}</p>
         </div>
       </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={chatEnabled}
+        aria-label={t("Akses chat untuk {0}",[agent.name])}
+        title={t("Berlaku untuk semua sesi Pitstop")}
+        disabled={powerDisabled}
+        onClick={onTogglePower}
+        className="flex min-h-10 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-xs text-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:opacity-60"
+      >
+        <span>{t("Akses chat")}</span>
+        <span className={chatEnabled?"font-semibold text-brand-cyan":"text-muted-foreground"}>{chatEnabled?"On":"Off"}</span>
+      </button>
       <div className="flex items-center gap-2"><p className="min-w-0 flex-1 text-[11px] text-muted-foreground truncate" title={agent.accountEmail||agent.connectionDetail}>{linkedApp?agent.connectionDetail:browser?agent.connectionDetail:agent.transport==='manual-web'?t("Balasan diimpor dari DeepSeek web"):agent.accountEmail||(isConnected?t("Email tidak tersedia"):t("Akun belum tersambung"))}</p><button type="button" onClick={onCheckConnection} disabled={checkingConnection} aria-label={t('Periksa koneksi {0}',[agent.name])} title={t('Periksa koneksi {0}',[agent.name])} className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-brand-cyan disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${checkingConnection?'animate-spin':''}`}/></button></div>
       {agent.connectionCheckedAt&&<p className="text-[10px] text-muted-foreground">{t('Diperiksa')}: {new Date(agent.connectionCheckedAt).toLocaleTimeString()}</p>}
       {linkedApp?<div className="rounded-md border border-border/70 bg-background px-2.5 py-2"><p className="text-[10px] font-mono text-brand-cyan truncate" title={linkedApp.cwd}>Linked App Chat · {linkedApp.title}</p><p className={`mt-1 text-[10px] leading-4 ${linkedApp.state==='error'?'text-destructive':'text-muted-foreground'}`} title={linkedApp.error||''}>{linkedApp.state==='error'?t("Sinkron gagal"):linkedApp.state==='needs-bridge'&&!isConnected?t("Penghubung App belum tersambung"):linkedApp.state==='unverified'?t("Menunggu verifikasi riwayat"):t("Model mengikuti chat aplikasi")}</p></div>:<div className="flex items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 py-2 font-mono text-[10px] text-muted-foreground"><Cpu className="h-3.5 w-3.5 shrink-0 text-primary"/><span className="truncate" title={agent.model}>{agent.model||(agent.id==='deepseek'?t("Dipilih di DeepSeek web"):t("Model bawaan CLI"))}</span>{agent.effort&&<span className="ml-auto shrink-0 rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 uppercase text-primary">{agent.effort}</span>}</div>}

@@ -4,8 +4,18 @@ import {fileURLToPath} from 'node:url';
 import {stat} from 'node:fs/promises';
 import {codexRequest} from './accounts.mjs';
 import {deepseekChat} from './deepseek-chat.mjs';
+import {getSessionInfo,listSessions} from '@anthropic-ai/claude-agent-sdk';
 
 export const validChatId=id=>typeof id==='string'&&/^[a-zA-Z0-9][a-zA-Z0-9_-]{7,127}$/.test(id);
+const validClaudeSession=id=>typeof id==='string'&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id);
+const claudeChat=session=>({id:session.sessionId,title:(session.customTitle||session.summary||session.sessionId).split(/\r?\n/)[0].slice(0,120),cwd:session.cwd,source:'claude'});
+export async function listClaudeChats({query='',cursor=null}={}){
+  const search=query.toLowerCase();
+  const items=(await listSessions()).filter(session=>validClaudeSession(session.sessionId)&&session.cwd).map(claudeChat)
+    .filter(item=>!search||[item.title,item.cwd,item.id].some(value=>value.toLowerCase().includes(search)));
+  const offset=/^\d{1,8}$/.test(cursor||'')?Number(cursor):0;
+  return {items:items.slice(offset,offset+50),nextCursor:items.length>offset+50?String(offset+50):null};
+}
 export async function listCodexChats(definition,{query='',cursor=null}={}){
   const result=await codexRequest(definition,'thread/list',{limit:50,archived:false,useStateDbOnly:true,...(query?{searchTerm:query.slice(0,120)}:{}),...(cursor?{cursor}:{})});
   return {items:(result.data||[]).filter(thread=>!thread.ephemeral).map(thread=>({id:thread.id,title:thread.name||thread.preview?.split('\n')[0]?.slice(0,100)||thread.id,cwd:thread.cwd||'',source:'codex',status:thread.status?.type||'unknown'})),nextCursor:result.nextCursor||null};
@@ -34,6 +44,12 @@ export async function validateWorkspace(path){
 export async function resolveAppLink(provider,input,{definitions,geminiRoot,workspaceFallback}={}){
   if(provider==='deepseek'){const chat=deepseekChat(input?.remoteUrl);if(input.id&&input.id!==chat.id)throw new Error('The DeepSeek URL opens a different chat.');return {id:chat.id,title:'DeepSeek project chat',source:'deepseek',transport:'browser-chat',remoteUrl:chat.url,cwd:'',state:'linked',linkedAt:new Date().toISOString()};}
   if(!validChatId(input?.id))throw new Error('Choose a valid native chat ID.');
+  if(provider==='claude'){
+    const session=validClaudeSession(input.id)?await getSessionInfo(input.id):null;
+    if(!session?.cwd)throw new Error('Choose an existing local Claude Code session.');
+    const item=claudeChat(session);
+    return {...item,cwd:await validateWorkspace(item.cwd),state:'linked',linkedAt:new Date().toISOString()};
+  }
   if(provider==='codex'){
     const {thread}=await codexRequest(definitions.codex,'thread/read',{threadId:input.id,includeTurns:false});
     if(!thread||thread.id!==input.id||thread.ephemeral)throw new Error('Choose a persistent Codex chat.');
@@ -48,7 +64,7 @@ export async function resolveAppLink(provider,input,{definitions,geminiRoot,work
     const cwd=await validateWorkspace(item.cwd||input.cwd||workspaceFallback);
     return {id:item.id,title:item.title,cwd,source:item.source,transport:'remote-app',state:'needs-bridge',linkedAt:new Date().toISOString()};
   }
-  throw new Error('Choose Codex, Antigravity, or DeepSeek.');
+  throw new Error('Choose Codex, Claude Code, Antigravity, or DeepSeek.');
 }
 export async function nativeAntigravityFile(link,{root=join(homedir(),'.gemini'),input,reply,afterIndex=-1}={}){
   if(link.source!=='antigravity'||!validChatId(link.id))throw new Error('Invalid native Antigravity chat.');

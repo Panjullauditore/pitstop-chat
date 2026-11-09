@@ -9,6 +9,7 @@ import { Room } from './room.mjs';
 import {soulWithLanguage} from './src/lib/language.mjs';
 import {COMMUNICATION_SOUL} from './soul-presets.mjs';
 import {archiveStatus} from './memory-retention.mjs';
+import {monthlyProjectActivity} from './project-activity.mjs';
 
 function legacyCore(content) {
   const lines=stripAutomaticMemory(content).split('\n');let skipping=false;
@@ -19,6 +20,8 @@ export class SessionStore extends EventEmitter {
   constructor({ directory, seed, context, agents, runner, attachments }) {
     super(); Object.assign(this, { directory, seed, context, agents, runner, attachments });
     this.entries = []; this.rooms = new Map(); this.activeId = 'session-default'; this.activeProjectId=null; this.queue = Promise.resolve(); this.importedIds = []; this.projects = []; this.memories=new Map();
+    this.disabledBotIds = new Set();
+    this.archivedDecisions = new Map();
   }
   async load() {
     await mkdir(this.directory, { recursive: true });
@@ -31,6 +34,7 @@ export class SessionStore extends EventEmitter {
       const value = JSON.parse(await readFile(join(this.directory, 'sessions.json'), 'utf8'));
       if (value.schema !== 1 || !Array.isArray(value.entries) || !value.entries.length || value.entries.some(e => !/^session[-_a-zA-Z0-9]+$/.test(e.id))) throw new Error('Indeks sesi tidak valid; data asli tidak ditimpa.');
       this.entries = value.entries; this.activeId = value.activeId; this.importedIds = value.importedIds || []; this.projects=value.projects || [];
+      this.disabledBotIds = new Set(value.disabledBotIds || []);
       const selectedProjectId=this.entries.find(entry=>entry.id===this.activeId)?.projectId;
       const legacyActive=this.projects.find(project=>project.id===selectedProjectId&&project.status!=='completed')?.id||this.projects.find(project=>project.status==='active')?.id;
       const candidate=Object.hasOwn(value,'activeProjectId')?value.activeProjectId:legacyActive;
@@ -44,6 +48,15 @@ export class SessionStore extends EventEmitter {
     }
     for (const entry of this.entries) await this.open(entry.id);
     for (const entry of this.entries) await this.ensureMemory(entry.id);
+    const history = await readFile(join(this.directory,'summary-retention-history.jsonl'),'utf8').catch(error=>{
+      if(error.code!=='ENOENT')throw error;
+      return '';
+    });
+    for(const line of history.trim().split('\n').filter(Boolean)){
+      let row;
+      try{row=JSON.parse(line);}catch{continue;}
+      if(this.memories.has(row?.scopeId)&&Array.isArray(row.decisions))this.rememberArchivedDecisions(row.scopeId,row.decisions);
+    }
     if(communicationFresh&&hasLegacyData){
       const policies=[...new Set([...this.rooms.values()].flatMap(room=>{
         const source=stripAutomaticMemory(room.brain.snapshot().soul.content),start=source.indexOf(POLICY_MARKER);
@@ -54,7 +67,7 @@ export class SessionStore extends EventEmitter {
     }
   }
   async persist() {
-    const text = JSON.stringify({ schema: 1, activeId: this.activeId, activeProjectId:this.activeProjectId, entries: this.entries, importedIds:this.importedIds, projects:this.projects }, null, 2);
+    const text = JSON.stringify({ schema: 1, activeId: this.activeId, activeProjectId:this.activeProjectId, entries: this.entries, importedIds:this.importedIds, projects:this.projects, disabledBotIds:[...this.disabledBotIds] }, null, 2);
     const operation = this.queue.then(async () => {
       await writeFile(join(this.directory, 'sessions.json.tmp'), text, 'utf8');
       await rename(join(this.directory, 'sessions.json.tmp'), join(this.directory, 'sessions.json'));
@@ -83,6 +96,7 @@ export class SessionStore extends EventEmitter {
     room.getProjectContext = text => this.projectContext(id,text);
     room.getNativeProjectContext = text => this.projectContext(id,text,{structured:true});
     room.getEnabledAgents = () => this.enabledAgents(id);
+    room.isBotEnabled = agentId => this.isBotEnabled(agentId);
     room.getGovernance = () => {
       const entry=this.entries.find(e=>e.id===id),project=this.projects.find(p=>p.id===entry?.projectId);
       return project ? {projectId:project.id,managerId:project.managerId || null,pendingDecision:project.pendingDecision || null,decisions:project.decisions || []} : null;
@@ -112,12 +126,31 @@ export class SessionStore extends EventEmitter {
   get room() { return this.rooms.get(this.activeId); }
   memoryKey(id) { const entry=this.entries.find(e=>e.id===id);return entry?.projectId || id; }
   memoryFor(id) { return this.memories.get(this.memoryKey(id)); }
+  rememberArchivedDecisions(scopeId, decisions) {
+    const archived = this.archivedDecisions.get(scopeId) || new Map();
+    for (const item of decisions) {
+      if (typeof item?.id === 'string') archived.set(item.id, {id:item.id, at:item.at});
+    }
+    this.archivedDecisions.set(scopeId, archived);
+  }
+  activitySnapshot(id, now = Date.now()) {
+    const scopeId = this.memoryKey(id);
+    const memory = this.memoryFor(id)?.value;
+    const project = this.projects.find(item => item.id === scopeId);
+    const members = project ? this.entries.filter(entry => entry.projectId === scopeId).map(entry => entry.id) : [id];
+    return monthlyProjectActivity({
+      now,
+      soul:memory?.soul || {},
+      messages:members.flatMap(member => this.rooms.get(member)?.messages || []),
+      decisions:[...(project?.decisions || []), ...(memory?.auto?.gmDecisions || []), ...(this.archivedDecisions.get(scopeId)?.values() || [])],
+    });
+  }
   memorySnapshot(id) {
     const entry=this.entries.find(e=>e.id===id),project=this.projects.find(p=>p.id===entry?.projectId);
     const memory=this.memoryFor(id)?.snapshot();
     if(!memory)return null;
     const annotate=(kind,rows)=>(rows||[]).map(item=>({...item,memoryStatus:archiveStatus(memory,kind,item)}));
-    return {...memory.soul,summary:this.summaryService?.snapshot(this.memoryKey(id)),managerId:project?.managerId || null,gmDecisions:memory.auto?.gmDecisions?annotate('gmDecisions',memory.auto.gmDecisions):annotate('decisions',project?.decisions),scopeId:this.memoryKey(id),auto:{...memory.auto,userNotes:annotate('userNotes',memory.auto?.userNotes),updates:annotate('updates',memory.auto?.updates)},projectId:project?.id || null,scopeName:project?.name || entry?.title || 'Chat',shared:Boolean(project)};
+    return {...memory.soul,activity:this.activitySnapshot(id),summary:this.summaryService?.snapshot(this.memoryKey(id)),managerId:project?.managerId || null,gmDecisions:memory.auto?.gmDecisions?annotate('gmDecisions',memory.auto.gmDecisions):annotate('decisions',project?.decisions),scopeId:this.memoryKey(id),auto:{...memory.auto,userNotes:annotate('userNotes',memory.auto?.userNotes),updates:annotate('updates',memory.auto?.updates)},projectId:project?.id || null,scopeName:project?.name || entry?.title || 'Chat',shared:Boolean(project)};
   }
   async ensureMemory(id) {
     const key=this.memoryKey(id);if(this.memories.has(key))return this.memories.get(key);
@@ -148,6 +181,27 @@ export class SessionStore extends EventEmitter {
     const allowed=project?.agentIds || Object.keys(this.agents);
     const selected=entry?.agentIds ? entry.agentIds.filter(id=>allowed.includes(id)) : [...allowed];
     return project?.managerId ? [...new Set([project.managerId,...selected])] : selected;
+  }
+  isBotEnabled(id) { return !this.disabledBotIds.has(id); }
+  async setBotEnabled(id, enabled) {
+    if(typeof id!=='string'||!Object.hasOwn(this.agents,id)||typeof enabled!=='boolean')throw new Error('Status bot tidak valid.');
+    if(this.isBotEnabled(id)===enabled)return;
+    if(enabled)this.disabledBotIds.delete(id);
+    else this.disabledBotIds.add(id);
+    try {
+      if(!enabled){
+        const summary=this.summaryService?.active;
+        if(summary?.agentId===id)this.summaryService.stop(summary.scopeId);
+        await Promise.all([...this.rooms.values()].filter(room=>room.run?.targets.includes(id)).map(room=>room.stop()));
+      }
+      await this.persist();
+    } catch(error) {
+      if(enabled)this.disabledBotIds.add(id);
+      else this.disabledBotIds.delete(id);
+      throw error;
+    } finally {
+      this.emit('change',this.snapshot());
+    }
   }
   async createProject({name,agentIds,managerId}) {
     if(managerId!==undefined&&!Object.hasOwn(this.agents,managerId))throw new Error('Pilih satu Project Manager yang valid.');
@@ -203,7 +257,7 @@ export class SessionStore extends EventEmitter {
     const project=this.projects.find(project=>project.id===projectId);if(!project)throw new Error('Project was not found.');
     if(this.entries.some(entry=>entry.projectId===projectId&&this.rooms.get(entry.id)?.run))throw new Error('Finish or stop this project’s active discussion before changing linked chats.');
     for(const other of this.projects.filter(item=>item.id!==projectId)){
-      for(const provider of ['codex','antigravity','deepseek'])if(linkedApps[provider]&&other.linkedApps?.[provider]?.id===linkedApps[provider].id)throw new Error('This chat is already linked to another project. Unlink it there first.');
+      for(const provider of Object.keys(linkedApps))if(linkedApps[provider]&&other.linkedApps?.[provider]?.id===linkedApps[provider].id)throw new Error('This chat is already linked to another project. Unlink it there first.');
     }
     project.linkedApps=structuredClone(linkedApps);await this.persist();this.emit('change',this.snapshot());return this.snapshot();
   }
@@ -253,7 +307,7 @@ export class SessionStore extends EventEmitter {
       return { ...entry, messages: room?.messages || [], soul: room?.brain.snapshot().soul, messageCount: room?.messages.length ?? entry.messageCount ?? 0 };
     });
   }
-  snapshot() { const state=this.room.snapshot();return { ...state, activeProjectId:this.activeProjectId, language:this.communication.snapshot().preferences.language || 'en', brain:{...state.brain,soul:this.communication.snapshot().soul}, projectMemory:this.memorySnapshot(this.activeId), sessionId: this.activeId, sessions: this.list(), projects:this.projects, enabledAgentIds:this.enabledAgents(this.activeId) }; }
+  snapshot() { const state=this.room.snapshot();return { ...state, activeProjectId:this.activeProjectId, language:this.communication.snapshot().preferences.language || 'en', brain:{...state.brain,soul:this.communication.snapshot().soul}, projectMemory:this.memorySnapshot(this.activeId), sessionId: this.activeId, sessions: this.list(), projects:this.projects, enabledAgentIds:this.enabledAgents(this.activeId), disabledBotIds:[...this.disabledBotIds] }; }
   async switch(id) {
     if (!this.entries.some(e => e.id === id)) throw new Error('Sesi tidak ditemukan.');
     const projectId=this.entries.find(entry=>entry.id===id)?.projectId;

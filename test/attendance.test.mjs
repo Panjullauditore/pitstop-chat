@@ -33,6 +33,21 @@ test('attendance rejects verbose replies and never replaces them with a fabricat
   assert.equal(room.attendance.agents.codex.status,'error');
   assert.equal(room.attendance.agents.antigravity.text,'Hadir, Siap Melanjutkan Project Nama Salah');
 });
+test('attendance and a plain group absen call the project manager first when available',async t=>{
+  const calls=[];
+  const {room}=await fixture(t,async agent=>{
+    calls.push(agent);
+    return 'Hadir, Siap Melanjutkan Project Aurora Rally';
+  });
+  room.getGovernance=()=>({managerId:'antigravity'});
+  await room.send({text:'Absen',mode:'attendance'});await room.run?.done;
+  assert.deepEqual(calls.splice(0),['antigravity','codex']);
+  await room.send({text:'Absen!',mode:'both',syncMemory:false});await room.run?.done;
+  assert.deepEqual(calls.splice(0),['antigravity','codex']);
+  room.isBotEnabled=agent=>agent!=='antigravity';
+  await room.send({text:'Absen',mode:'attendance'});await room.run?.done;
+  assert.deepEqual(calls,['codex']);
+});
 test('attendance cannot interrupt an active discussion',async t=>{
   const {room}=await fixture(t,async(agent,prompt,{signal})=>new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('Stop','AbortError')),{once:true})));
   await room.send({text:'Mulai diskusi',mode:'both'});const active=room.run;

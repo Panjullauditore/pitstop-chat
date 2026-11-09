@@ -46,6 +46,11 @@ test('HTTP session APIs persist state, reject stale writes and protect mutations
   assert.ok(Object.keys(zip.files).every(name=>/^pitstop-bridge\/(?:[a-zA-Z0-9.-]+)?$/.test(name)));
   assert.ok(!Object.keys(zip.files).some(name=>/browser-bridge\.json|agents\.json|\.env|SOUL\.md|data\//.test(name)));
   assert.equal((await fetch(base+'/api/agents/check',{method:'POST'})).status,403);
+  assert.equal((await fetch(base+'/api/agents/power',{method:'POST'})).status,403);
+  assert.equal((await request('/api/agents/power',{agent:'codex',enabled:'false'})).status,400);
+  assert.deepEqual((await request('/api/agents/power',{agent:'codex',enabled:false})).data.disabledBotIds,['codex']);
+  assert.equal((await request('/api/send',{text:'@Codex Test'})).status,400);
+  assert.deepEqual((await request('/api/agents/power',{agent:'codex',enabled:true})).data.disabledBotIds,[]);
   assert.equal((await request('/api/agents/check',{agent:'unknown'})).status,400);
   assert.equal((await request('/api/agents/check',{agent:'deepseek'},'POST','stale-session')).status,400);
   const connectionCheck=await request('/api/agents/check',{agent:'deepseek'});

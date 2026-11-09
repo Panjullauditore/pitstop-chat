@@ -8,7 +8,8 @@ import {ProjectData,LinkedAppChat} from '@/lib/types';
 import {BrowserBridgeSetup} from './BrowserBridgeSetup';
 import {useI18n} from '@/lib/i18n';
 
-type Provider='codex'|'antigravity'|'deepseek';
+const providers={codex:'Codex',claude:'Claude Code',antigravity:'Antigravity',deepseek:'DeepSeek'} as const;
+type Provider=keyof typeof providers;
 type Chat={id:string;title:string;cwd:string;source:string;status?:string};
 type Links=Partial<Record<Provider,Pick<LinkedAppChat,'id'|'source'|'cwd'|'title'|'remoteUrl'>>>;
 export function LinkedAppChatsDialog({project,token,onClose,onSave}:{project:ProjectData;token:string;onClose:()=>void;onSave:(links:Links)=>Promise<void>}){
@@ -36,9 +37,10 @@ export function LinkedAppChatsDialog({project,token,onClose,onSave}:{project:Pro
   return <Dialog open onOpenChange={open=>{if(!open&&!saving)onClose();}}><DialogContent className="sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
     <DialogHeader><DialogTitle className="flex items-center gap-2"><Link2 className="w-5 h-5 text-brand-cyan"/>Linked App Chat</DialogTitle><DialogDescription>{project.name} · {t('Lanjutkan chat yang sama di aplikasi asal.')}</DialogDescription></DialogHeader>
     <p className="text-sm text-muted-foreground">{t('Pesan dari semua sesi proyek ini dikirim ke chat pilihan, termasuk konteks Soul Memory dan Project Memory. Model dan izin mengikuti aplikasi asal.')}</p>
-    <div className="flex gap-1 border-b border-border" role="tablist" aria-label="App">
-      {(['codex','antigravity','deepseek'] as const).map(id=><button key={id} role="tab" aria-selected={provider===id} onClick={()=>{setProvider(id);setSearch('');setQuery('');setPage(null);}} className={`px-4 py-2 text-sm rounded-t-lg ${provider===id?'bg-secondary text-foreground':'text-muted-foreground hover:text-foreground'}`}>{id==='codex'?'Codex':id==='deepseek'?'DeepSeek':'Antigravity'}{links[id]&&<Check className="inline ml-2 w-3 h-3 text-brand-cyan"/>}</button>)}
+    <div className="flex flex-wrap gap-1 border-b border-border" role="tablist" aria-label="App">
+      {(Object.keys(providers) as Provider[]).map(id=><button key={id} role="tab" aria-selected={provider===id} onClick={()=>{setProvider(id);setSearch('');setQuery('');setPage(null);}} className={`px-3 py-2 text-sm rounded-t-lg ${provider===id?'bg-secondary text-foreground':'text-muted-foreground hover:text-foreground'}`}>{providers[id]}{links[id]&&<Check className="inline ml-2 w-3 h-3 text-brand-cyan"/>}</button>)}
     </div>
+    {provider==='claude'&&<p className="text-sm text-muted-foreground">{t('Pilih sesi Claude Code lokal. Saat ditautkan, pesan Pitstop dan balasannya tersimpan di sesi itu. Tool dan MCP Claude dinonaktifkan selama percakapan dari Pitstop.')}</p>}
     {provider==='antigravity'&&<p className="text-sm text-muted-foreground">{t('Chat Antigravity App memerlukan penghubung Remote Control. Aktifkan di Settings → Application, lalu login di profil Chrome yang dipasangkan ke Pitlane Bridge.')}</p>}
     <div className="rounded-lg bg-secondary/50 p-3 space-y-1 text-sm">
       <span className="font-medium block">{selected?.title||t('Tidak ditautkan')}</span>

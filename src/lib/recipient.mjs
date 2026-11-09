@@ -1,58 +1,82 @@
-/** The leading mention is the source of truth for message routing.
- * @param {string} text
- * @param {{id:string,name:string}[]} agents
+const mentionStart = /(?<![\p{L}\p{M}\p{N}_@/\\.#%+-])@/gu;
+
+/** @param {{id:string,name:string}} agent */
+function aliases(agent){
+  const name=agent.name||agent.id;
+  return [...new Set([agent.id,name,name.replace(/\s+\([^()]+\)$/,'')])];
+}
+
+/** @template {{id:string,name:string}} T @param {string} text @param {T[]} agents */
+function mentionMatches(text,agents){
+  const tags=agents.flatMap(agent=>aliases(agent).map(name=>({agent,tag:'@'+name.toLowerCase()})))
+    .sort((a,b)=>b.tag.length-a.tag.length);
+  const matches=[];
+  let end=0;
+  for(const {index:start} of text.matchAll(mentionStart)){
+    if(start<end)continue;
+    const match=tags.find(({tag})=>{
+      const after=text.slice(start+tag.length);
+      return text.slice(start,start+tag.length).toLowerCase()===tag &&
+        (!after||/^[\s,!?;:)\]}'"…]|^\.(?![\p{L}\p{M}\p{N}_])/u.test(after));
+    });
+    if(match){
+      end=start+match.tag.length;
+      matches.push({agent:match.agent,start,end});
+    }
+  }
+  return matches;
+}
+
+/** Return each tagged agent once, in order of first mention.
+ * @template {{id:string,name:string}} T
+ * @param {string} text @param {T[]} agents
  */
-export function messageRecipient(text,agents){
-  return recipientMatch(text,agents)?.agent;
+export function messageRecipients(text,agents){
+  return [...new Map(mentionMatches(text,agents).map(({agent})=>[agent.id,agent])).values()];
 }
 
-/** @param {string} text @param {{id:string,name:string}[]} agents */
-function recipientMatch(text,agents){
-  const start=text.trimStart();
-  return agents.flatMap(agent=>[...new Set([agent.name,agent.id])].map(name=>({agent,tag:'@'+name})))
-    .sort((a,b)=>b.tag.length-a.tag.length).find(({tag})=>start.slice(0,tag.length).toLowerCase()===tag.toLowerCase()&&(!start[tag.length]||/\s/.test(start[tag.length])));
-}
-
-/** @param {string} text @param {{id:string,name:string}[]} agents @param {string} id */
+/** Toggle one recipient, or clear all tags with the Team button.
+ * @param {string} text @param {{id:string,name:string}[]} agents @param {string} id
+ */
 export function selectRecipient(text,agents,id){
-  const previous=recipientMatch(text,agents);
-  const body=previous?text.trimStart().slice(previous.tag.length).replace(/^\s+/,''):text;
-  const next=agents.find(agent=>agent.id===id);
-  return next?'@'+next.name+' '+body:body;
+  const matches=mentionMatches(text,agents).filter(({agent})=>id==='broadcast'||agent.id===id);
+  if(matches.length){
+    return matches.reverse().reduce((draft,{start,end})=>{
+      const left=draft.slice(0,start),right=draft.slice(end);
+      return left+(!left||/\s$/.test(left)?right.replace(/^[ \t]+/,''):right);
+    },text);
+  }
+  const agent=agents.find(agent=>agent.id===id);
+  return agent?'@'+(agent.name||agent.id)+' '+text:text;
 }
 
-/** Find an unfinished @mention at the caret, ignoring email addresses.
+/** Find an unfinished mention at the caret, ignoring email addresses and URLs.
  * @template {{id:string,name:string}} T
  * @param {string} text @param {number} caret @param {T[]} agents
  */
 export function mentionSuggestions(text,caret,agents){
-  const before=text.slice(0,caret),match=before.match(/(?:^|\s)@([^@\r\n]{0,80})$/);
-  if(!match)return null;
-  const query=match[1].toLowerCase(),start=caret-match[1].length-1;
-  if(/\s$/.test(query)&&agents.some(agent=>[agent.name,agent.id].some(name=>name.toLowerCase()===query.trimEnd())))return null;
-  const items=agents.filter(agent=>[agent.name,agent.id].some(name=>name.toLowerCase().includes(query)));
+  const before=text.slice(0,caret),start=[...before.matchAll(mentionStart)].at(-1)?.index;
+  if(start===undefined)return null;
+  const query=before.slice(start+1).toLowerCase();
+  if(query.length>80||/[\r\n@]/.test(query))return null;
+  const full=mentionMatches(text.slice(start),agents).find(match=>match.start===0);
+  if(full&&caret>=start+full.end)return null;
+  const items=agents.filter(agent=>aliases(agent).some(name=>name.toLowerCase().includes(query)));
   if(!items.length)return null;
-  // If editing inside a complete tag, replace its remainder as well.
-  const full=recipientMatch(text.slice(start),agents);
-  const tail=text.slice(caret).match(/^[^\s@]*/)?.[0]||'';
-  const tailIsName=tail&&items.some(agent=>[agent.name,agent.id].some(name=>name.toLowerCase().startsWith(query+tail.toLowerCase())));
-  const end=full?Math.max(caret,start+full.tag.length):tailIsName?caret+tail.length:caret;
-  return {start,end,query,items};
+  const tail=text.slice(caret).match(/^[\p{L}\p{M}\p{N}_-]*/u)?.[0]||'';
+  const tailIsName=tail&&items.some(agent=>aliases(agent).some(name=>name.toLowerCase().startsWith(query+tail.toLowerCase())));
+  return {start,end:full?start+full.end:tailIsName?caret+tail.length:caret,query,items};
 }
 
-/** Complete a tag and route it through the existing leading-mention rule.
+/** Complete only the tag at the caret.
  * @param {string} text @param {{id:string,name:string}[]} agents
  * @param {string} id @param {{start:number,end:number}} range
  */
 export function completeMention(text,agents,id,range){
-  const left=text.slice(0,range.start),right=text.slice(range.end);
-  const atStart=range.start===text.length-text.trimStart().length;
-  const remainder=atStart?right.trimStart():left+(/\s$/.test(left)&&/^\s/.test(right)?right.slice(1):right);
-  const previous=recipientMatch(remainder,agents);
-  const removed=previous?remainder.length-(remainder.trimStart().slice(previous.tag.length).replace(/^\s+/,'' )).length:0;
-  const bodyBefore=atStart?0:Math.max(0,range.start-removed);
   const agent=agents.find(agent=>agent.id===id);
   if(!agent)return {text,caret:range.end};
-  const next=selectRecipient(remainder,agents,id);
-  return {text:next,caret:Math.min(next.length,agent.name.length+2+bodyBefore)};
+  const right=text.slice(range.end);
+  const separator=!right||!/^[\s,!?;:.)\]}'"…]/u.test(right)?' ':'';
+  const tag='@'+(agent.name||agent.id)+separator;
+  return {text:text.slice(0,range.start)+tag+right,caret:range.start+tag.length};
 }

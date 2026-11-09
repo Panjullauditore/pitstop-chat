@@ -16,6 +16,14 @@ async function fixture(t,runner,options={}){
 }
 const message=(id,text,role='user')=>({id,text,role,status:'done',at:'2026-11-03T10:00:00.000Z'});
 
+test('an off summarizer cannot read pending group messages',async t=>{
+ const {store,service}=await fixture(t,async()=>assert.fail('The off bot received a summary prompt'));
+ store.room.messages.push(message('new','Group discussion'));
+ await store.setBotEnabled('codex',false);
+ assert.throws(()=>service.start(store.activeId),/summarizer is Off/);
+ assert.equal(service.active,null);
+});
+
 test('every summary batch uses its own verified connection despite concurrent health-cache changes',async t=>{
  let cache='shared',checks=0;const transports=[];
  const {store,service,scopeId}=await fixture(t,async(_agent,_prompt,options)=>{transports.push(options.codexTransport);assert.equal(options.codexTransport,'stdio');assert.equal(cache,'shared');return '{"content":"# Updated"}';},{batchSize:850,beforeRun:async()=>{checks++;const result={codexTransport:'stdio'};cache='shared';return result;}});

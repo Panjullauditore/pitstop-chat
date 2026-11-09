@@ -27,10 +27,12 @@ import { BrandLogo } from "@/components/room/BrandLogo";
 import { Sidebar } from "@/components/room/Sidebar";
 import {WorkspaceClock,MemoryUpdateReminder} from "@/components/room/WorkspaceClock";
 import {quotaWarningKey} from '@/lib/memory-reminders.mjs';
+import {useReplySound} from '@/lib/use-reply-sound';
 import {useDownloadConfirmation,downloadFile} from '@/components/room/DownloadConfirmation';
 import { TeamPanel } from "@/components/room/TeamPanel";
 import { MessageSearch } from "@/components/room/MessageSearch";
 import { ChatMessages } from "@/components/room/ChatMessages";
+import { ChatQueue } from "@/components/room/ChatQueue";
 import { ProjectDecisionPanel } from "@/components/room/ProjectDecisionPanel";
 import { Composer } from "@/components/room/Composer";
 import { SoulMemoryDrawer } from "@/components/room/SoulMemoryDrawer";
@@ -60,6 +62,7 @@ import { toast } from "sonner";
 
 export default function PitstopPage() {
   const {t,setLanguage}=useI18n();
+  const observeReply=useReplySound();
   const confirmDownload=useDownloadConfirmation();
   const [searchTarget,setSearchTarget] = useState<{messageId:string;query:string;nonce:number}|null>(null);
   const [token, setToken] = useState("");
@@ -135,7 +138,7 @@ export default function PitstopPage() {
         }
         if (disposed) return;
         unsubscribe = subscribeRoomEvents(data.token,
-          snapshot => { if (!disposed) { setOnline(true); applySnapshot(snapshot); } },
+          snapshot => { if (!disposed) { observeReply(snapshot);setOnline(true);applySnapshot(snapshot); } },
           warning => toast.warning(t("Peringatan Room"), {description:warning}),
           () => {
             if (disposed) return;
@@ -151,7 +154,7 @@ export default function PitstopPage() {
     }
     void connect();
     return () => {disposed=true;unsubscribe?.();if(retry)clearTimeout(retry);};
-  }, [applySnapshot]);
+  }, [applySnapshot,observeReply]);
 
   const sessionMutation = useCallback(async (action: string, input: Record<string, unknown>) => {
     try { setSearchTarget(null);applySnapshot(await mutateSession(action, input, token)); }
@@ -178,9 +181,11 @@ export default function PitstopPage() {
         return;
       }
 
-      await sendChat({ text, mode, syncMemory, attachmentIds, decisionId, sessionId: activeSessionId }, token);
-      setSearchTarget(null);
-      setChatScrollRequest(value=>value+1);
+      const result=await sendChat({ text, mode, syncMemory, attachmentIds, decisionId, sessionId: activeSessionId }, token);
+      if(!result.queuedId){
+        setSearchTarget(null);
+        setChatScrollRequest(value=>value+1);
+      }
     },
     [token, activeSessionId]
   );
@@ -278,13 +283,18 @@ export default function PitstopPage() {
       {/* 2. Area Utama (Center Chat Workspace) */}
       <main className="flex-1 flex flex-col min-w-0 h-dvh min-h-0 overflow-hidden bg-background relative isolate">
         {/* TopNavBar Collaboration Header (Stitch Architecture) */}
-        <header className="h-[76px] px-4 sm:px-6 border-b border-border bg-rail flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            {!sidebarOpen&&<button type="button" onClick={()=>setSidebarOpen(true)} className="lg:hidden h-9 w-9 rounded-lg hover:bg-secondary flex items-center justify-center shrink-0" aria-label={t("Buka navigasi")}><Menu className="w-4 h-4"/></button>}
-            <div className="min-w-0"><div className="mb-1 flex items-center gap-2 font-mono text-[9px] uppercase tracking-wide"><span className="text-primary shrink-0">Pitstop /</span><span className="text-muted-foreground truncate" title={projectName}>{activeSession?.projectId?projectName:'Workspace'}</span></div><h1 className="text-base sm:text-lg font-display font-bold truncate" title={activeSession?.title}>{activeSession?.title||'New Chat'}</h1></div>
-            <WorkspaceClock online={online}/>
+        <header className="grid h-[88px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-2 items-center gap-x-2 border-b border-border bg-rail px-3 sm:flex sm:h-[76px] sm:justify-between sm:gap-3 sm:px-6">
+          <div className="contents sm:flex sm:min-w-0 sm:flex-1 sm:items-center sm:gap-3">
+            {!sidebarOpen&&<button type="button" onClick={()=>setSidebarOpen(true)} className="col-start-1 row-start-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-secondary lg:hidden" aria-label={t("Buka navigasi")}><Menu className="w-4 h-4"/></button>}
+            <div className="contents sm:block sm:min-w-0">
+              <div className="col-start-2 row-start-1 flex min-w-0 items-center gap-2 font-mono text-[9px] uppercase tracking-wide sm:mb-1"><span className="text-primary shrink-0">Pitstop /</span><span className="text-muted-foreground truncate" title={projectName}>{activeSession?.projectId?projectName:'Workspace'}</span></div>
+              <div className="col-span-3 col-start-1 row-start-2 flex min-w-0 items-center gap-2 sm:gap-3">
+                <h1 className="min-w-0 truncate font-display text-base font-bold sm:text-lg" title={activeSession?.title}>{activeSession?.title||'New Chat'}</h1>
+                <WorkspaceClock online={online} reminderPending={Boolean(roomState?.projectMemory?.scopeId&&roomState.projectMemory.summary?.pendingMessages&&roomState.projectMemory.summary.status!=='running')}/>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="col-start-3 row-start-1 flex shrink-0 items-center gap-1">
             <span className="lg:hidden"><MessageSearch sessions={sessions} onSelect={handleSearchSelect} compact/></span>
             <Button variant="ghost" size="sm" onClick={()=>{setMemoryTab('project');setSoulDialogOpen(true);}} className="h-10 gap-2 px-2.5 border border-border bg-secondary" aria-label={t("Buka Project Memory")} title="Project Memory"><Brain className="w-4 h-4"/><span className="hidden min-[1400px]:inline text-[10px] font-mono uppercase">Project Memory</span></Button>
             <Button variant="ghost" size="sm" onClick={()=>setTeamPanelOpen(value=>!value)} className="h-10 gap-2 px-2.5 border border-border bg-secondary" aria-label={teamPanelOpen?t("Tutup tim"):t("Buka tim")} aria-pressed={teamPanelOpen} title={t("Panel tim")}><Users className="w-4 h-4"/><span className="hidden sm:inline text-xs">{t("Tim")}</span></Button>
@@ -333,10 +343,12 @@ export default function PitstopPage() {
           quotaMap={roomState?.quota || {}}
           pinnedIds={roomState?.projectMemory?.pinnedIds || []}
           onPromptSelected={handlePromptSelected}
+          onJumpToLatest={()=>setSearchTarget(null)}
           onMessagePinned={()=>{void fetchBootstrap().then(data=>applySnapshot(data.state));}}
         />
 
         {/* Composer */}
+        <ChatQueue key={activeSessionId} items={roomState?.chatQueue || []} token={token} sessionId={activeSessionId} disabled={!online}/>
         {activeProject?.pendingDecision ? <ProjectDecisionPanel key={activeProject.pendingDecision.id} question={activeProject.pendingDecision.question} disabled={!online} onDecision={text=>handleSendMessage(text,'discussion',true,[],activeProject.pendingDecision!.id)}/> : roomState?.webRequest ? <ManualWebPanel key={roomState.webRequest.id} request={roomState.webRequest} token={token} onStop={handleStopRun}/> : <Composer
           key={`composer-${activeSessionId}`}
           token={token}
@@ -345,15 +357,20 @@ export default function PitstopPage() {
           onStop={handleStopRun}
           isRunning={isRunning}
           isStopping={isStopping}
+          queueCount={roomState?.chatQueue?.length || 0}
+          memoryUpdating={roomState?.projectMemory?.summary?.status==='running'}
           statusText={runStatusText}
           errorMessage={initError}
-          agents={activeAgents}
+          agents={activeAgents.filter(agent=>!roomState?.disabledBotIds?.includes(agent.id))}
+          knownAgents={allAgents}
           disabled={!online}
         />}
       </main>
 
       {/* 3. Panel Tim di Kanan (Collapsible on Desktop, Drawer on Mobile) */}
       <TeamPanel linkedApps={activeProject?.linkedApps}
+        disabledBotIds={roomState?.disabledBotIds || []}
+        onBotPowerChanged={disabledBotIds=>setRoomState(previous=>previous?{...previous,disabledBotIds}:previous)}
         onConnectionsChecked={(sessionId,agents)=>setRoomState(previous=>previous?.sessionId===sessionId?{...previous,agents}:previous)}
         managerId={activeProject?.managerId}
         onOpen={()=>setTeamPanelOpen(true)}
