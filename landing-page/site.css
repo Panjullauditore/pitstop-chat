@@ -318,3 +318,17 @@ h1{text-wrap:wrap}
 @media (max-width: 670px) {
   .orbit-logo { width: 47%; }
 }
+
+/* Closing call to action and touch-size fixes. */
+.closing{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:clamp(1.7rem,5vw,5rem);padding-block:clamp(3.5rem,8vw,7rem);border-top:1px solid var(--line)}
+.closing h2 span{color:var(--orange)}
+.closing p{color:var(--muted);max-width:52ch}
+.closing-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1.6rem}
+.action-secondary{display:inline-flex;align-items:center;gap:.75rem;padding:.86rem 1.05rem;border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--font-display);font-weight:700;transition:border-color .2s,background .2s}
+.action-secondary:hover{border-color:var(--muted);background:var(--panel)}
+.action-secondary svg{transition:transform .3s var(--ease-out)}
+.action-secondary:hover svg{transform:translateX(4px)}
+.foot-links{display:flex;align-items:center;gap:1.5rem}
+nav a,.up{display:inline-flex;align-items:center;min-height:44px}
+@media(max-width:670px){.closing{grid-template-columns:1fr}.foot-links{margin-left:auto;gap:1rem}.foot-links .up{margin-left:0}}
+@media(prefers-reduced-motion:reduce){.action-secondary:hover svg{transform:none}}
